@@ -1,0 +1,16 @@
+# Please keep these options sorted alphabetically.
+
+option('enable_dpdk', type: 'boolean', value: false,
+    description: 'build dpdk driver')
+
+option('enable_mem_dbg_oob_l1', type: 'boolean', value: false,
+    description: 'memory debugging: detect out-of-bound read/write level 1')
+
+option('enable_mem_dbg_oob_l2', type: 'boolean', value: false,
+    description: 'memory debugging: detect out-of-bound read/write level 2')
+
+option('enable_mem_dbg_print', type: 'boolean', value: false,
+    description: 'memory debugging: print memory allocation and release')
+
+option('enable_ssl', type: 'boolean', value: false,
+    description: 'build ssl stack with support of openssl')

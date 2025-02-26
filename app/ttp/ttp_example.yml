@@ -1,0 +1,43 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2020-2024 Lune Reseau, Inc.
+#
+# Lune Test Tcp Perf tool
+#
+
+cpu:
+  nrt: 0
+  rt_client_start: 1
+  rt_client_na_num: 0
+  rt_client_np_num: 1
+  rt_client_cp_num: 0
+  rt_server_start: 2
+  rt_server_na_num: 0
+  rt_server_np_num: 1
+  rt_server_cp_num: 0
+interface:
+  client:
+    name: virtual_interface_1
+    type: virtual
+    capture: disable
+  server:
+    name: virtual_interface_2
+    type: virtual
+    capture: disable
+load:
+  # total duration of the run
+  time: 30
+  # connections establishment attempts per second
+  rate: 1000
+  # total payload length in a packet
+  payload_len: 100
+  # number of packets sent per connection
+  pkt_cnt: 1
+  # maximum concurrent connections
+  max_cc: 100000
+  # time interval between packets (by millisecond)
+  pkt_intvl: 25
+  # ipv4 or ipv6
+  ip: ipv4
+  # none(tcp) or tls1.2 or tls1.3
+  ssl: none

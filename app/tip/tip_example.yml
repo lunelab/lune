@@ -1,0 +1,29 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2020-2024 Lune Reseau, Inc.
+#
+# Lune Test Interface Perf tool
+#
+
+cpu:
+  nrt: 0
+  rt_client_start: 1
+  rt_client_core_num: 1
+  rt_server_start: 2
+  rt_server_core_num: 1
+interface:
+  client:
+    name: virtual_interface_1
+    type: virtual
+    capture: disable
+  server:
+    name: virtual_interface_2
+    type: virtual
+    capture: disable
+load:
+  time: 30
+  pps: 10000
+  pkt_size: 100
+  resp: disable
+system:
+  hz: 10000
