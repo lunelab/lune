@@ -1015,7 +1015,15 @@ static int net_if_nrt_del_non_aggr_net_if(unsigned int id)
         sizeof(conf)))) {
         lune_log(LUNE_INFO, "failed to send request of deleting interface %08x"
             " to core %d: %s", id, nrt_ifp->non_aggr.core_id, ERR_GET_ERR_STR(err));
-        return err;
+        if (-LUNE_ERR_CORE_NOT_RUNNING != err) {
+            return err;
+        }
+
+        /*
+            if core has been deleted, any interface on core has already been disabled and
+            deleted before the core quits. just release resource
+        */
+        goto DELETED;
     }
 
     while (-LUNE_ERR_BUF_EMPTY == (err = comm_recv_resp_from_core(nrt_ifp->non_aggr.core_id,
@@ -1036,6 +1044,7 @@ static int net_if_nrt_del_non_aggr_net_if(unsigned int id)
 
     lune_assert(LUNE_COMM_RESP_DEL_NET_IF == resp_type);
 
+DELETED:
     s_net_if_nrt_cnt--;
     s_net_if_nrt_array[NET_IF_GET_NRT_INT_ID(id)] = NULL;
     lune_free_mt(nrt_ifp);
@@ -1113,7 +1122,11 @@ static int net_if_nrt_disable_non_aggr_net_if(unsigned int id)
         sizeof(conf)))) {
         lune_log(LUNE_INFO, "failed to send request of disabling interface %08x"
             " to core %d: %s", id, nrt_ifp->non_aggr.core_id, ERR_GET_ERR_STR(err));
-        return err;
+        /*
+            return success if core has been deleted, any interface on core has already been
+            disabled and deleted before the core quits
+        */
+        return -LUNE_ERR_CORE_NOT_RUNNING == err ? 0 : err;
     }
 
     while (-LUNE_ERR_BUF_EMPTY == (err = comm_recv_resp_from_core(nrt_ifp->non_aggr.core_id,
@@ -1941,7 +1954,16 @@ static int net_if_nrt_disable_aggr_net_if(unsigned int id)
             sizeof(conf)))) {
             lune_log(LUNE_INFO, "failed to send request of disabling interface %08x to core %d: %s",
                 nrt_ifp->aggr.chan_id_array[i], nrt_ifp->aggr.core_id_array[j], ERR_GET_ERR_STR(err));
-            goto ERR_2;
+
+            if (-LUNE_ERR_CORE_NOT_RUNNING != err) {
+                goto ERR_3;
+            }
+    
+            /*
+                if core has been deleted, any interface on core has already been disabled and
+                deleted before the core quits. just continue
+            */
+            continue;
         }
 
         while (-LUNE_ERR_BUF_EMPTY == (err = comm_recv_resp_from_core(nrt_ifp->aggr.core_id_array[j],
@@ -1971,7 +1993,16 @@ static int net_if_nrt_disable_aggr_net_if(unsigned int id)
             sizeof(conf)))) {
             lune_log(LUNE_INFO, "failed to send request of disable interface %08x"
                 " to core %d: %s", conf.id, nrt_ifp->aggr.core_id_array[i], ERR_GET_ERR_STR(err));
-            goto ERR_3;
+
+            if (-LUNE_ERR_CORE_NOT_RUNNING != err) {
+                goto ERR_3;
+            }
+    
+            /*
+                if core has been deleted, any interface on core has already been disabled and
+                deleted before the core quits. just continue
+            */
+            continue;
         }
 
         while (-LUNE_ERR_BUF_EMPTY == (err = comm_recv_resp_from_core(nrt_ifp->aggr.core_id_array[i],
