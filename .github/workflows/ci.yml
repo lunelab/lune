@@ -1,0 +1,72 @@
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2025 Lune Reseau, Inc.
+#
+# Lune GitHub CI
+#
+
+name: CI
+
+on: [push, pull_request]
+jobs:
+  build-debug:
+    # build ssl-disabled, static library as default, debug version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y gcc meson pkgconf libyaml-dev
+
+      - name: Configure Meson
+        run: meson setup build -Denable_ssl=false --buildtype=debug -Ddefault_library=static
+
+      - name: Build Project
+        run: ninja -C build
+
+      - name: Run lune-tip and Check Log
+        run: |
+          cd build/app
+          ./lune-tip -f ../../app/tip/tip_example.yml
+          if grep -q "Rx_pps 0.01M" *.log; then
+            echo "Success: lune-tip statistics found"
+          else
+            echo "Failure: lune-tip statistics not found"
+            exit 1
+          fi
+          rm *.log
+
+  build-debugoptimized:
+    # build ssl-enabled, shared library as default, debugoptimized version
+    runs-on: ubuntu-latest
+    # wait for 'build-debug' to complete
+    needs: build-debug
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y gcc meson pkgconf libyaml-dev libssl-dev
+
+      - name: Configure Meson
+        run: meson setup build -Denable_ssl=true --buildtype=debugoptimized -Ddefault_library=shared
+
+      - name: Build Project
+        run: ninja -C build
+
+      - name: Run lune-ttp and Check Log
+        run: |
+          cd build/app
+          ./lune-ttp -f ../../app/ttp/ttp_example.yml
+          if grep -q "Tx Bps 214000" *.log; then
+            echo "Success: lune-ttp statistics found"
+          else
+            echo "Failure: lune-ttp statistics not found"
+            exit 1
+          fi
+          rm *.log

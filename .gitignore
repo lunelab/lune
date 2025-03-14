@@ -1,0 +1,16 @@
+# ignore vscode files
+.vscode
+
+# ignore generated capture files
+*.pcap
+
+# ignore generated log files
+*.log
+
+# ignore generated build files
+build
+
+# ignore generated binary files
+*.o
+*.a
+*.so

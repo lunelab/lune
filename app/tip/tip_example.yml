@@ -21,7 +21,7 @@ interface:
     type: virtual
     capture: disable
 load:
-  time: 30
+  time: 10
   pps: 10000
   pkt_size: 100
   resp: disable
