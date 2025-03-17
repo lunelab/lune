@@ -39,10 +39,11 @@ LUNE build configuration can be modified in `meson_option.txt`. The default conf
 
 ### Prerequisites ###
 
+    sudo apt update
     # install LUNE dependencies
-    sudo apt install meson pkgconf
+    sudo apt install -y meson pkgconf
     # install LUNE built-in APPs dependencies
-    sudo apt install libyaml-dev
+    sudo apt install -y libyaml-dev
 
 ### Build ###
 
@@ -82,19 +83,8 @@ Do as follows before build:
 
 ### Prerequisite ###
 
-    # download, configure, compile, and install OpenSSL 1.1.1 (OpenSSL 3 not supported yet)
-    wget https://www.openssl.org/source/openssl-1.1.1.tar.gz
-    tar -xzf openssl-1.1.1.tar.gz
-    cd openssl-1.1.1
-    ./config --prefix=/usr/local/openssl-1.1.1 --openssldir=/usr/local/openssl-1.1.1
-    make
-    sudo make install
-    # make OpenSSL 1.1.1 libraries searchable for current login user
-    echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/openssl-1.1.1/lib' >> ~/.bashrc
-    echo 'export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/openssl-1.1.1/lib/pkgconfig' >> ~/.bashrc
-    source ~/.bashrc
-    # make OpenSSL 1.1.1 header files searchable
-    sudo ln -s /usr/local/openssl-1.1.1/include/openssl /usr/local/include/openssl
+    # install OpenSSL development package
+    sudo apt install -y libssl-dev
 
 ### Configuration for Build ###
 

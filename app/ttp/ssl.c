@@ -75,7 +75,6 @@ static char s_ttp_ssl_priv_key[] = TTP_SSL_SOCKET_SSL_PRIV_KEY;
 
 unsigned int ttp_ssl_create_client_ssl(lune_ssl_version_en ver)
 {
-    ;
     lune_ssl_ciphers_t ciphers;
     lune_ssl_cipher_en cipher_array[3];
     lune_ssl_cert_t cert;
