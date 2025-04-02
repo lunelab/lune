@@ -476,7 +476,7 @@ static inline void pbuf_truncate_pbuf(pbuf_t *pbuf, unsigned short len)
 
 static inline void pbuf_reset_pbuf(pbuf_t *pbuf, unsigned char *hdr, unsigned char *payload)
 {
-    pbuf->payload_len = pbuf->buf + pbuf->buf_len - payload;
+    pbuf->payload_len = pbuf->payload + pbuf->payload_len - payload;
     pbuf->payload = payload;
     pbuf->hdr_len = payload - hdr;
     pbuf->hdr = hdr;

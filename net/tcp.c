@@ -1203,18 +1203,75 @@ static inline int tcp_close_socket(socket_x_t *sk, unsigned int type)
 static inline int tcp_update_unack_buf_list(socket_x_t *sk, lune_tcp_hdr_t *tcph)
 {
     tcp_pcb_t *pcb = &sk->pcb.tcp;
-    pbuf_t *p, *p2;
-    unsigned int cnt, ack_data_len;
+    pbuf_t *p, *p2, *p3;
+    unsigned int cnt, ack_data_len, pbuf_data_len;
+    int len;
+    lune_tcp_hdr_t *h;
 
     cnt = 0, ack_data_len = 0;
     dlist_for_each_node_safe(p, p2, &pcb->unack_buf_list, node) {
-        if (TCP_SEQ_GEQ(lune_ntohl(((lune_tcp_hdr_t *)PBUF_GET_HDR(p))->seq_no), tcph->ack_no)) {
+        len = TCP_SEQ_VAL(tcph->ack_no, lune_ntohl(((lune_tcp_hdr_t *)PBUF_GET_HDR(p))->seq_no));
+        if (len <= 0) {
             break;
         }
 
         cnt++;
+
+        pbuf_data_len = PBUF_GET_PAYLOAD_LEN(p) - TCP_GET_HDR_LEN(PBUF_GET_HDR(p));
+        if ((unsigned int)len <= pbuf_data_len) {
+            /* last piece of acknowledged pbuf */
+            if ((unsigned int)len < pbuf_data_len) {
+                /* split pbuf if it's only partially acknowledged */
+                if (unlikely(!pbuf_is_last_ref(p))) {
+                    /* p still in use somewhere else */
+                    if (NULL == (p3 = pbuf_dup_pbuf(p))) {
+                        lune_log(LUNE_INFO, "failed to duplicate pbuf at state %s"
+                            " on tcp connection %s: %s",
+                            TCP_GET_STATE_STR(pcb->state),
+                            tcp_print_pcb_4tuple(pcb),
+                            ERR_GET_LAST_ERR_STR());
+                        return ERR_GET_LAST_ERR();
+                    }
+        
+                    dlist_replace(&p3->node, &p->node);
+                    pbuf_put(p);
+                    p = p3;
+                    pbuf_hold(p);
+                }
+
+                pbuf_move_up(p, TCP_GET_HDR_LEN(PBUF_GET_HDR(p)));
+                pbuf_data_len -= len;
+                memcpy(PBUF_GET_PAYLOAD(p), PBUF_GET_PAYLOAD(p) + len, pbuf_data_len);
+                pbuf_truncate_pbuf(p, pbuf_data_len);
+                pbuf_reset_pbuf(p, (unsigned char *)p->tcp.hdr, (unsigned char *)p->tcp.hdr);
+
+                /* update all necessary tcp-related pbuf fields */
+                p->l4_len = PBUF_GET_PAYLOAD_LEN(p);
+                p->tcp.data_len = pbuf_data_len;
+
+                /* update all necessary fields of tcp header and re-calculate checksum */
+                h = ((lune_tcp_hdr_t *)PBUF_GET_HDR(p));
+                h->seq_no = lune_htonl(lune_ntohl(h->seq_no) + len);
+                h->ack_no = lune_htonl(pcb->recv_nxt);
+                h->win_size = lune_htons(pcb->recv_wnd);
+                h->csum = 0;
+                if (!IP_IS_HW_TX_TCP_CSUM(pcb->ipp)) {
+                    h->csum = tcp_calc_csum(h, pcb->ipp, &pcb->dst_ip, PBUF_GET_PAYLOAD_LEN(p));
+                }
+
+                ack_data_len += len;
+            } else {
+                /* fully acknowledged pbuf, i.e., len == pbuf_data_len */
+                ack_data_len += pbuf_data_len;
+                dlist_del(&p->node);
+                pbuf_put(p);
+            }
+
+            break;
+        }
+
         /* just notice that acknowledged data length may be zero if it's a control packet */
-        ack_data_len += (PBUF_GET_PAYLOAD_LEN(p) - TCP_GET_HDR_LEN(PBUF_GET_HDR(p)));
+        ack_data_len += pbuf_data_len;
         dlist_del(&p->node);
         pbuf_put(p);
     }
@@ -2308,22 +2365,30 @@ static inline int tcp_process_data_ack(socket_x_t *sk, pbuf_t *pbuf, lune_tcp_hd
         /* fall through */
     case TCP_FINWT2:
     case TCP_EST:
-        if (unlikely(TCP_SEQ_GT(pcb->recv_nxt, tcph->seq_no))) {
-            /* retransmitted packet, notify the other peer with updated ACK */
-            if (0 != (err = tcp_send_ack(sk))) {
-                lune_log(LUNE_INFO, "failed to send ACK at state %s on tcp connection %s: %s",
-                    TCP_GET_STATE_STR(pcb->state),
-                    tcp_print_pcb_4tuple(pcb),
-                    ERR_GET_ERR_STR(err));
-                goto ERR_CLOSE;
-            }
-            return 0;
+    {
+        pbuf_t *new_pbuf;
+
+        if (likely(TCP_SEQ_EQ(pcb->recv_nxt, tcph->seq_no))) {
+            return tcp_process_data(sk, pcb, pbuf);
         }
 
-        if (unlikely(TCP_SEQ_LT(pcb->recv_nxt, tcph->seq_no))) {
-            /* data doesn't arrive in order:( */
-            pbuf_t *new_pbuf;
-            pcb->send_wnd = tcph->win_size;
+        if (unlikely(TCP_SEQ_GT(pcb->recv_nxt, tcph->seq_no))) {
+            unsigned int unack_data_len;
+
+            if (TCP_SEQ_VAL(pcb->recv_nxt, tcph->seq_no) >= PBUF_GET_PAYLOAD_LEN(pbuf)) {
+                /* retransmitted packet, notify the other peer with updated ACK */
+                if (0 != (err = tcp_send_ack(sk))) {
+                    lune_log(LUNE_INFO, "failed to send ACK at state %s on tcp connection %s: %s",
+                        TCP_GET_STATE_STR(pcb->state),
+                        tcp_print_pcb_4tuple(pcb),
+                        ERR_GET_ERR_STR(err));
+                    goto ERR_CLOSE;
+                }
+
+                return 0;
+            }
+
+            /* some data has been acknowledged, some has not */
             if (NULL == (new_pbuf = pbuf_dup_pbuf(pbuf))) {
                 err = ERR_GET_LAST_ERR();
                 lune_log(LUNE_INFO, "failed to allocate new pbuf on tcp connection %s",
@@ -2331,20 +2396,40 @@ static inline int tcp_process_data_ack(socket_x_t *sk, pbuf_t *pbuf, lune_tcp_hd
                 goto ERR_RST_CLOSE;
             }
 
-            /* cache it */
-            tcp_insert_unordered_list(pcb, new_pbuf);
-            if (0 != (err = tcp_send_ack(sk))) {
-                lune_log(LUNE_INFO, "failed to send ACK at state %s on tcp connection %s: %s",
-                    TCP_GET_STATE_STR(pcb->state),
-                    tcp_print_pcb_4tuple(pcb),
-                    ERR_GET_ERR_STR(err));
-                goto ERR_CLOSE;
-            }
-        } else {
-            return tcp_process_data(sk, pcb, pbuf);
+            unack_data_len = PBUF_GET_PAYLOAD_LEN(pbuf) - TCP_SEQ_VAL(pcb->recv_nxt, tcph->seq_no);
+            memcpy(PBUF_GET_PAYLOAD(new_pbuf),
+                PBUF_GET_PAYLOAD(new_pbuf) + PBUF_GET_PAYLOAD_LEN(pbuf) - unack_data_len, unack_data_len);
+            pbuf_truncate_pbuf(new_pbuf, unack_data_len);
+
+            err = tcp_process_data(sk, pcb, new_pbuf);
+            pbuf_free_pbuf(new_pbuf);
+            return err;
+        }
+
+        /*
+            TCP_SEQ_LT(pcb->recv_nxt, tcph->seq_no)
+            data doesn't arrive in order:(
+        */
+        pcb->send_wnd = tcph->win_size;
+        if (NULL == (new_pbuf = pbuf_dup_pbuf(pbuf))) {
+            err = ERR_GET_LAST_ERR();
+            lune_log(LUNE_INFO, "failed to allocate new pbuf on tcp connection %s",
+                tcp_print_pcb_4tuple(pcb));
+            goto ERR_RST_CLOSE;
+        }
+
+        /* cache it */
+        tcp_insert_unordered_list(pcb, new_pbuf);
+        if (0 != (err = tcp_send_ack(sk))) {
+            lune_log(LUNE_INFO, "failed to send ACK at state %s on tcp connection %s: %s",
+                TCP_GET_STATE_STR(pcb->state),
+                tcp_print_pcb_4tuple(pcb),
+                ERR_GET_ERR_STR(err));
+            goto ERR_CLOSE;
         }
 
         break;
+    }
     case TCP_LASTACK:
         if (unlikely(TCP_SEQ_LEQ(pcb->recv_nxt, tcph->seq_no))) {
             /* suspicious, close it */

@@ -10,7 +10,7 @@ LUNE provides a library that implements major L2-L5 protocols running in user sp
 
 It supports:
 - simulation of massive MAC addresses
-- simulation of massive IP adresses
+- simulation of massive IP addresses
 - simulation of massive TCP connections
 - simulation of massive SSL sessions
 - L2-L5 protocols
