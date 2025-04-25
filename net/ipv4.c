@@ -100,7 +100,7 @@ static inline unsigned int ipv4_add_ipv4(const lune_ipv4_addr_t ipv4,
     ipv4p->ipv4.mask = mask;
     ipv4p->ipv4.gw = gw;
     dlist_init_head(&ipv4p->ipv4.gw_list);
-    ipv4p->ipv4.pkt_id = 0;
+    ipv4p->ipv4.pkt_id = (unsigned short)lune_rand(0, 65535);
 
     ipv4p->sk = ipv4p->tcp_listen_sk = NULL;
     ipv4p->flags = 0;   /* IP_SET_IPV4() included */
