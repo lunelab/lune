@@ -250,6 +250,50 @@ static inline unsigned short udp_calc_csum(lune_udp_hdr_t *udph,
     return csum_fold(sum);
 }
 
+int lune_udp_calc_csum(lune_udp_hdr_t *udph,
+    lune_ip_addr_t *src_ip,
+    lune_ip_addr_t *dst_ip,
+    unsigned short udp_len,
+    unsigned short *pcsum)
+{
+    unsigned int sum;
+
+    if (unlikely(NULL == udph
+        || NULL == src_ip
+        || NULL == dst_ip
+        || LUNE_UDP_HDR_LEN > udp_len
+        || NULL == pcsum)) {
+        return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
+    }
+
+    if (unlikely(src_ip->is_ipv6 != dst_ip->is_ipv6)) {
+        return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
+    }
+
+    sum = csum_partial((unsigned char *)udph, udp_len, 0);
+
+    if (src_ip->is_ipv6) {
+        lune_ipv6_psd_hdr_t ipv6h;
+        LUNE_IPV6_CPY(ipv6h.src_addr.addr, src_ip->ipv6.addr);
+        LUNE_IPV6_CPY(ipv6h.dst_addr.addr, dst_ip->ipv6.addr);
+        ipv6h.len = lune_htons(udp_len);
+        *(unsigned int *)ipv6h.zeros = 0;
+        ipv6h.proto = LUNE_IP_PROTO_UDP;
+        sum = csum_partial((unsigned char *)&ipv6h, sizeof(lune_ipv6_psd_hdr_t), sum);
+    } else {
+        lune_ipv4_psd_hdr_t ipv4h;
+        ipv4h.src_addr = lune_htonl(src_ip->ipv4);
+        ipv4h.dst_addr = lune_htonl(dst_ip->ipv4);
+        ipv4h.z = 0;
+        ipv4h.proto = LUNE_IP_PROTO_UDP;
+        ipv4h.len = lune_htons(udp_len);
+        sum = csum_partial((unsigned char *)&ipv4h, sizeof(lune_ipv4_psd_hdr_t), sum);
+    }
+
+    *pcsum = csum_fold(sum);
+    return 0;
+}
+
 static inline void udp_build_hdr(lune_udp_hdr_t *udph,
     ip_t *ipp,
     const lune_ip_addr_t *dst_ip,

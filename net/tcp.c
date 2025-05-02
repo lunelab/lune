@@ -203,6 +203,14 @@ int lune_tcp_calc_csum(lune_tcp_hdr_t *tcph,
 {
     unsigned int sum;
 
+    if (unlikely(NULL == tcph
+        || NULL == src_ip
+        || NULL == dst_ip
+        || LUNE_TCP_HDR_LEN > tcp_len
+        || NULL == pcsum)) {
+        return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
+    }
+
     if (unlikely(src_ip->is_ipv6 != dst_ip->is_ipv6)) {
         return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
     }

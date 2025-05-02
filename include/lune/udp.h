@@ -34,6 +34,15 @@ typedef struct _lune_udp_socket_callback {
     void *data;
 } lune_udp_socket_callback_t;
 
+/*
+    caller guarantees fields in UDP header is in network order
+*/
+int lune_udp_calc_csum(lune_udp_hdr_t *udph,
+    lune_ip_addr_t *src_ip,
+    lune_ip_addr_t *dst_ip,
+    unsigned short udp_len,
+    unsigned short *pcsum);
+
 #ifdef __cplusplus
 }
 #endif
