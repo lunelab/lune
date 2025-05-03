@@ -84,10 +84,11 @@ int lune_set_core_opt(unsigned int id,
        discarded.
     2. plen MUST NOT be NULL. returned response may be truncated if *plen is less
        than the actual length of original response and *plen will return the actual
-       length
+       length.
+    3. perr MUST NOT be NULL. it returns error occurred on core.
 */
 int lune_send_req_to_core(unsigned int id, const unsigned char *buf, unsigned int len);
-int lune_recv_resp_from_core(unsigned id, unsigned char *pbuf, unsigned int *plen);
+int lune_recv_resp_from_core(unsigned int id, unsigned char *pbuf, unsigned int *plen, int *perr);
 
 /* the following APIs are called on core only */
 int lune_core_get_opt(lune_core_opt_en opt, unsigned char *opt_val, unsigned int opt_len);

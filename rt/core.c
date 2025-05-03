@@ -460,10 +460,10 @@ int lune_core_send_resp(const unsigned char *buf, unsigned int len, int err)
     return comm_core_send_resp(LUNE_COMM_RESP_APP, buf, len, err);
 }
 
-int lune_recv_resp_from_core(unsigned id, unsigned char *pbuf, unsigned int *plen)
+int lune_recv_resp_from_core(unsigned int id, unsigned char *pbuf, unsigned int *plen, int *perr)
 {
     core_ins_t *ci;
-    int err, rt_err, retries = 0;
+    int err, retries = 0;
     lune_comm_resp_type_en resp_type;
     unsigned int sleep_usecs = CORE_NRT_WAIT_RT_RESP_SLEEP_USEC;
 
@@ -471,7 +471,7 @@ int lune_recv_resp_from_core(unsigned id, unsigned char *pbuf, unsigned int *ple
         return ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
     }
 
-    if (unlikely(!CPU_IS_VALID_CPU_ID(id) || NULL == plen)) {
+    if (unlikely(!CPU_IS_VALID_CPU_ID(id) || NULL == plen || NULL == perr)) {
         return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
     }
 
@@ -496,29 +496,29 @@ int lune_recv_resp_from_core(unsigned id, unsigned char *pbuf, unsigned int *ple
     }
 
     while (-LUNE_ERR_BUF_EMPTY == (err = comm_recv_resp_from_core(id,
-        &resp_type, &rt_err, pbuf, plen))
+        &resp_type, perr, pbuf, plen))
         && CORE_NRT_WAIT_RT_RESP_MAX_RETRIES >= ++retries) {
         usleep(sleep_usecs);
     }
 
-    if (CORE_NRT_WAIT_RT_RESP_MAX_RETRIES < retries) {
-        lune_assert(-LUNE_ERR_BUF_EMPTY == err);
-        return ERR_SET_ERR(LUNE_ERR_MAX_RETRIES);
+    if (0 != err) {
+        /* failed to receive response */
+        if (CORE_NRT_WAIT_RT_RESP_MAX_RETRIES < retries) {
+            lune_assert(-LUNE_ERR_BUF_EMPTY == err);
+            return ERR_SET_ERR(LUNE_ERR_MAX_RETRIES);
+        }
+
+        return err;
     }
 
     if (LUNE_COMM_RESP_APP != resp_type) {
+        /* unexpected response */
         return ERR_SET_ERR(LUNE_ERR_APP_INTERNAL);
     }
 
-    if (0 != rt_err) {
-        lune_assert(0 == err);
-        err = rt_err;
-        ERR_SET_ERR(-err);
-    }
-
-    if (0 != err) {
-        lune_log(LUNE_INFO, "failed to receive app response from core %d: %s", id, ERR_GET_ERR_STR(err));
-        return err;
+    if (0 != *perr) {
+        /* set error on current non-runtime core */
+        ERR_SET_ERR(-*perr);
     }
 
     return 0;
