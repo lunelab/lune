@@ -40,6 +40,8 @@ typedef enum _lune_net_if_opt {
     LUNE_NET_IF_OPT_GET_SSL_STATS,
     LUNE_NET_IF_OPT_GET_TCP_STATS,
     LUNE_NET_IF_OPT_GET_CHAN_ID,
+    LUNE_NET_IF_OPT_GET_MAC_ID,
+    LUNE_NET_IF_OPT_GET_IPV4_ID,
     /* set options */
     LUNE_NET_IF_OPT_CLEAR_ALL_STATS = 256,
     LUNE_NET_IF_OPT_SET_MTU,

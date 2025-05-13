@@ -921,7 +921,7 @@ static int mac_socket_sendto(socket_t *sk, const unsigned char *buf, unsigned in
     unsigned char lbuf[PBUF_MAX_RSVD_HDR_LEN + LUNE_NET_IF_MAX_MTU];
     pbuf_t pbuf;
 
-    if (dst_addr_len != sizeof(lune_mac_addr_t)
+    if (dst_addr_len != LUNE_MAC_ADDR_LEN
         || NULL == arg || arg_len != sizeof(lune_mac_sendto_arg_t)) {
         return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
     }

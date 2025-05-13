@@ -5,7 +5,9 @@
 
 #include "lune/err.h"
 #include "lune/id.h"
+#include "lune/ipv4.h"
 #include "lune/log.h"
+#include "lune/mac.h"
 #include "lune/mem.h"
 #include "lune/net_if.h"
 #include "lune/os/linux.h"
@@ -25,23 +27,40 @@ typedef struct _net_if_std_ring {
 
 typedef struct _net_if_std {
     char name[LUNE_MAX_SHORT_NAME_BUF_LEN];
+#define NET_IF_STD_FLAG_ON(std, flag)           (((net_if_std_t *)(std))->flags & (flag))
+#define NET_IF_STD_SET_FLAG(std, flag)          \
+    do { ((net_if_std_t *)(std))->flags |= (flag); } while (0)
+#define NET_IF_STD_CLEAR_FLAG(std, flag)        \
+    do { ((net_if_std_t *)(std))->flags &= (~flag); } while (0)
 #define NET_IF_STD_FLAG_UP                      0x00000001
-#define NET_IF_STD_IS_UP(std)                   ((std)->flags & NET_IF_STD_FLAG_UP)
-#define NET_IF_STD_SET_UP(std)                  \
-    do { (std)->flags = ((std)->flags | (NET_IF_STD_FLAG_UP)); } while (0)
-#define NET_IF_STD_SET_DOWN(std)                \
-    do { (std)->flags = ((std)->flags & (~NET_IF_STD_FLAG_UP)); } while (0)
+#define NET_IF_STD_IS_UP(std)                   NET_IF_STD_FLAG_ON(std, NET_IF_STD_FLAG_UP)
+#define NET_IF_STD_SET_UP(std)                  NET_IF_STD_SET_FLAG(std, NET_IF_STD_FLAG_UP)
+#define NET_IF_STD_SET_DOWN(std)                NET_IF_STD_CLEAR_FLAG(std, NET_IF_STD_FLAG_UP)
 #define NET_IF_STD_FLAG_LOSING_PKT              0x00000002
-#define NET_IF_STD_IS_LOSING_PKT(std)      ((std)->flags & NET_IF_STD_FLAG_LOSING_PKT)
-#define NET_IF_STD_SET_LOSING_PKT(std)          \
-    do { (std)->flags = ((std)->flags | (NET_IF_STD_FLAG_LOSING_PKT)); } while (0)
-#define NET_IF_STD_CLEAR_LOSING_PKT(std)        \
-    do { (std)->flags = ((std)->flags & (~NET_IF_STD_FLAG_LOSING_PKT)); } while (0)
+#define NET_IF_STD_IS_LOSING_PKT(std)           NET_IF_STD_FLAG_ON(std, NET_IF_STD_FLAG_LOSING_PKT)
+#define NET_IF_STD_SET_LOSING_PKT(std)          NET_IF_STD_SET_FLAG(std, NET_IF_STD_FLAG_LOSING_PKT)
+#define NET_IF_STD_CLEAR_LOSING_PKT(std)        NET_IF_STD_CLEAR_FLAG(std, NET_IF_STD_FLAG_LOSING_PKT)
+#define NET_IF_STD_FLAG_IPV4                    0x00000004
+#define NET_IF_STD_IS_IPV4_SET(std)             NET_IF_STD_FLAG_ON(std, NET_IF_STD_FLAG_IPV4)
+#define NET_IF_STD_SET_IPV4(std)                NET_IF_STD_SET_FLAG(std, NET_IF_STD_FLAG_IPV4)
+#define NET_IF_STD_CLEAR_IPV4(std)              NET_IF_STD_CLEAR_FLAG(std, NET_IF_STD_FLAG_IPV4)
+#define NET_IF_STD_FLAG_MASK                    0x00000008
+#define NET_IF_STD_IS_MASK_SET(std)             NET_IF_STD_FLAG_ON(std, NET_IF_STD_FLAG_MASK)
+#define NET_IF_STD_SET_MASK(std)                NET_IF_STD_SET_FLAG(std, NET_IF_STD_FLAG_MASK)
+#define NET_IF_STD_CLEAR_MASK(std)              NET_IF_STD_CLEAR_FLAG(std, NET_IF_STD_FLAG_MASK)
+#define NET_IF_STD_FLAG_GW                      0x00000010
+#define NET_IF_STD_IS_GW_SET(std)               NET_IF_STD_FLAG_ON(std, NET_IF_STD_FLAG_GW)
+#define NET_IF_STD_SET_GW(std)                  NET_IF_STD_SET_FLAG(std, NET_IF_STD_FLAG_GW)
+#define NET_IF_STD_CLEAR_GW(std)                NET_IF_STD_CLEAR_FLAG(std, NET_IF_STD_FLAG_GW)
     unsigned int flags;
     int fd;
     unsigned int tx_task_id;
     unsigned short mtu;
     unsigned short old_flags;
+    lune_mac_addr_t mac;
+    lune_ipv4_addr_t ipv4;
+    lune_ipv4_addr_t mask;
+    lune_ipv4_addr_t gw;
     net_if_std_ring_t send_ring;
     net_if_std_ring_t recv_ring;
     lune_net_if_stats_t stats;
@@ -278,6 +297,39 @@ static int net_if_std_set_socket_flags(const char *name, unsigned short flags)
     return 0;
 }
 
+#define RTF_UP          0x0001  /* route is valid */
+#define RTF_GATEWAY     0x0002  /* destination is a gateway */
+
+static int get_ipv4_gateway(const char *net_if_name, struct in_addr *gw) {
+    FILE *fp;
+    char line[256];
+    char name[16];
+    unsigned int dst, mask;
+    int metric, refcnt, use, flags, mtu, window, irtt;
+
+    fp = fopen("/proc/net/route", "r");
+    if (NULL == fp) {
+        return -1;
+    }
+
+    /* skip the header line */
+    fgets(line, sizeof(line), fp);
+
+    while (NULL != fgets(line, sizeof(line), fp)) {
+        if (11 == sscanf(line, "%s %x %x %x %d %d %d %x %d %d %d",
+            name, &dst, &gw->s_addr, &flags, &refcnt, &use, &metric, &mask, &mtu, &window, &irtt)) {
+            /* check if it's the default route (destination 0.0.0.0) and for the correct interface */
+            if (0 == dst && (flags & RTF_UP) && (flags & RTF_GATEWAY) && !strcmp(name, net_if_name)) {
+                fclose(fp);
+                return 0;
+            }
+        }
+    }
+
+    fclose(fp);
+    return -1;
+}
+
 static int net_if_std_init_std(net_if_std_t *std, const char *name)
 {
     struct ifreq ifr;
@@ -295,18 +347,46 @@ static int net_if_std_init_std(net_if_std_t *std, const char *name)
         goto ERR_1;
     }
 
-    /* get mtu */
     memset(&ifr, 0x00, sizeof(ifr));
     strcpy(ifr.ifr_name, std->name);
 
+
+    /* get mtu */
     if (-1 == ioctl(fd, SIOCGIFMTU, &ifr)) {
         lune_log(LUNE_CRIT, "failed to get mtu on %s: %s", std->name, strerror(errno));
         ERR_SET_ERR(LUNE_ERR_SYS_SOCKET_ERR);
         goto ERR_2;
     }
-
     std->mtu = (unsigned short)ifr.ifr_mtu;
     std->old_flags = 0;
+
+    /* get mac address */
+    if (-1 == ioctl(fd, SIOCGIFHWADDR, &ifr)) {
+        lune_log(LUNE_CRIT, "failed to get mac on %s: %s", std->name, strerror(errno));
+        ERR_SET_ERR(LUNE_ERR_SYS_SOCKET_ERR);
+        goto ERR_2;
+    }
+    LUNE_MAC_CPY(std->mac, (unsigned char *)ifr.ifr_hwaddr.sa_data);
+
+    /* get ip address */
+    if (0 == ioctl(fd, SIOCGIFADDR, &ifr)) {
+        std->ipv4 = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
+        NET_IF_STD_SET_IPV4(std);
+    }
+
+    /* get subnet mask */
+    if (0 == ioctl(fd, SIOCGIFNETMASK, &ifr)) {
+        std->mask = ((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr.s_addr;
+        NET_IF_STD_SET_MASK(std);
+    }
+
+    /* get gateway */
+    struct in_addr gw;
+    if (0 == get_ipv4_gateway(name, &gw)) {
+        std->gw = gw.s_addr;
+        NET_IF_STD_SET_GW(std);
+    }
+
     memset(&std->send_ring, 0x00, sizeof(net_if_std_ring_t));
     memset(&std->recv_ring, 0x00, sizeof(net_if_std_ring_t));
     memset(&std->stats, 0x00, sizeof(lune_net_if_stats_t));
@@ -674,6 +754,58 @@ static int net_if_std_get_opt(net_if_std_t *std,
         }
 
         *(unsigned short *)opt_val = std->mtu;
+        break;
+    case NET_IF_OPT_GET_MAC:
+        if (opt_len != LUNE_MAC_ADDR_LEN) {
+            return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
+        }
+
+        LUNE_MAC_CPY(opt_val, std->mac);
+        break;
+    case NET_IF_OPT_GET_IPV4:
+        if (opt_len != LUNE_IPV4_ADDR_LEN) {
+            return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
+        }
+
+        if (!NET_IF_STD_IS_IPV4_SET(std)) {
+            /*
+                ERR_SET_ERR() unneeded as it is normal that ipv4 address is not set
+                on a standard network interface
+            */
+            return -LUNE_ERR_NOT_SET;
+        }
+
+        *(lune_ipv4_addr_t *)opt_val = std->ipv4;
+        break;
+    case NET_IF_OPT_GET_MASK:
+        if (opt_len != LUNE_IPV4_ADDR_LEN) {
+            return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
+        }
+
+        if (!NET_IF_STD_IS_MASK_SET(std)) {
+            /*
+                ERR_SET_ERR() unneeded as it is normal that subnet mask is not set
+                on a standard network interface
+            */
+            return -LUNE_ERR_NOT_SET;
+        }
+
+        *(lune_ipv4_addr_t *)opt_val = std->mask;
+        break;
+    case NET_IF_OPT_GET_GW:
+        if (opt_len != LUNE_IPV4_ADDR_LEN) {
+            return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
+        }
+
+        if (!NET_IF_STD_IS_GW_SET(std)) {
+            /*
+                ERR_SET_ERR() unneeded as it is normal that subnet mask is not set
+                on a standard network interface
+            */
+            return -LUNE_ERR_NOT_SET;
+        }
+
+        *(lune_ipv4_addr_t *)opt_val = std->gw;
         break;
     case NET_IF_OPT_GET_STATS:
         if (opt_len != sizeof(lune_net_if_stats_t)) {

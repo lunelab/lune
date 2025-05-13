@@ -63,6 +63,10 @@ typedef enum _net_if_opt {
     NET_IF_OPT_IS_RECV_REFCNT_AVAIL,
     NET_IF_OPT_GET_PEER_NET_IF,     /* used by virtual interface only */
     NET_IF_OPT_GET_CONN_TYPE,       /* used by virtual interface only */
+    NET_IF_OPT_GET_MAC,
+    NET_IF_OPT_GET_IPV4,
+    NET_IF_OPT_GET_MASK,
+    NET_IF_OPT_GET_GW,
     /* set options, internal only */
     NET_IF_OPT_DISABLE_HW_CSUM = 768,
     NET_IF_OPT_CONNECT_LOCAL,       /* used by virtual interface only */
@@ -254,7 +258,11 @@ typedef struct _net_if {
 
     lune_net_if_type_en type;
 
+#define NET_IF_GET_MTU(ifp)                     (((net_if_t *)(ifp))->mtu)
     unsigned short mtu;
+
+    unsigned int mac_id;
+    unsigned int ipv4_id;
 
     void *sk;
 
@@ -264,8 +272,6 @@ typedef struct _net_if {
 #define NET_IF_MAX_TX_DATA_RATE_TIMER_INTVL     (1 * LUNE_TIME_MILLISECOND)
     lune_timer_t max_tx_data_rate_tmr;
 } net_if_t;
-
-#define NET_IF_GET_MTU(ifp)                     (((net_if_t *)(ifp))->mtu)
 
 typedef struct _net_if_pcb {
     lune_net_if_socket_callback_t cb;

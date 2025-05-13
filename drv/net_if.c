@@ -376,6 +376,45 @@ static net_if_t *net_if_add_net_if(lune_net_if_type_en type,
     s_net_if_rt_array_offset = ((ifp->id + 1) % LUNE_NET_IF_MAX_NUM);
     s_net_if_rt_array[ifp->id] = ifp;
 
+    lune_mac_addr_t mac;
+    lune_ipv4_addr_t ipv4, mask, gw;
+
+    /*
+        adding built-in mac & ipv4 address MUST be done after network interface
+        added to network interface array. otherwise it will fail due to interface
+        not found
+    */
+    if (0 == (err = ifp->drv->get_opt(ifp->net_if_data,
+        NET_IF_OPT_GET_MAC, (unsigned char *)mac, sizeof(mac)))) {
+        if (LUNE_INVALID_ID == (ifp->mac_id = lune_add_mac(mac, LUNE_ID_NET_IF, ifp->id))) {
+            goto ERR_3;
+        }
+    } else {
+        ifp->mac_id = LUNE_INVALID_ID;
+    }
+
+    if (LUNE_INVALID_ID != ifp->mac_id) {
+        if (0 == (err = ifp->drv->get_opt(ifp->net_if_data,
+            NET_IF_OPT_GET_IPV4, (unsigned char *)&ipv4, sizeof(ipv4)))) {
+            if (0 != (err = ifp->drv->get_opt(ifp->net_if_data,
+                NET_IF_OPT_GET_GW, (unsigned char *)&gw, sizeof(gw)))
+                || 0 != (err = ifp->drv->get_opt(ifp->net_if_data,
+                NET_IF_OPT_GET_MASK, (unsigned char *)&mask, sizeof(mask)))) {
+                /* gateway or mask not found, zero out subnet and gateway, i.e., no gateway */
+                mask = gw = 0;
+            }
+
+            if (LUNE_INVALID_ID == (ifp->ipv4_id = lune_add_ipv4(ipv4, mask, gw, LUNE_ID_MAC, ifp->mac_id))) {
+                ERR_SET_ERR(LUNE_ERR_NET_IF_INTERNAL);
+                goto ERR_4;
+            }
+        } else {
+            ifp->ipv4_id = LUNE_INVALID_ID;
+        }
+    } else {
+        ifp->ipv4_id = LUNE_INVALID_ID;
+    }
+
     strcpy(ifp->name, name);
     memset(&ifp->hook, 0x00, sizeof(ifp->hook));
     memset(&ifp->stats, 0x00, sizeof(ifp->stats));
@@ -415,8 +454,16 @@ static net_if_t *net_if_add_net_if(lune_net_if_type_en type,
 
     return ifp;
 
+ERR_4:
+    if (LUNE_INVALID_ID != ifp->mac_id) {
+        lune_assert(!lune_del_mac(ifp->mac_id));
+        ifp->mac_id = LUNE_INVALID_ID;
+    }
+
 ERR_3:
-    lune_assert(!ifp->drv->del_net_if(ifp->net_if_data));
+    if (NULL != ifp->drv->del_net_if) {
+        lune_assert(!ifp->drv->del_net_if(ifp->net_if_data));
+    }
 
 ERR_2:
     lune_free_mt(ifp);
@@ -598,6 +645,16 @@ static int net_if_del_net_if(net_if_t *ifp)
 
         ifp->aip = NULL;
         NET_IF_SET_NONAGGR(ifp);
+    }
+
+    if (LUNE_INVALID_ID != ifp->ipv4_id) {
+        lune_assert(!lune_del_ipv4(ifp->ipv4_id));
+        ifp->ipv4_id = LUNE_INVALID_ID;
+    }
+
+    if (LUNE_INVALID_ID != ifp->mac_id) {
+        lune_assert(!lune_del_mac(ifp->mac_id));
+        ifp->mac_id = LUNE_INVALID_ID;
     }
 
     if (NULL != ifp->drv->del_net_if) {
@@ -817,9 +874,15 @@ static int net_if_enable_net_if(net_if_t *ifp)
         goto ERR_3;
     }
 
+    if (LUNE_INVALID_ID != ifp->mac_id) {
+        if (0 != (err = lune_enable_mac(ifp->mac_id))) {
+            goto ERR_3;
+        }
+    }
+
     if (NULL != ifp->drv->set_up
         && ifp->drv->set_up(ifp->net_if_data)) {
-        goto ERR_3;
+        goto ERR_4;
     }
 
     timer_add_timer(&ifp->max_tx_data_rate_tmr, NET_IF_MAX_TX_DATA_RATE_TIMER_INTVL);
@@ -827,6 +890,11 @@ static int net_if_enable_net_if(net_if_t *ifp)
     NET_IF_SET_ACTIVE(ifp);
 
     return 0;
+
+ERR_4:
+    if (LUNE_INVALID_ID != ifp->mac_id) {
+        lune_assert(!lune_disable_mac(ifp->mac_id));
+    }
 
 ERR_3:
     timer_del_timer(&ifp->stats_tmr);
@@ -2723,10 +2791,31 @@ int lune_get_net_if_opt(unsigned int id,
         break;
     case LUNE_NET_IF_OPT_GET_CHAN_ID:
         return ifp->drv->get_opt(ifp->net_if_data,
-            NET_IF_OPT_GET_CHAN_ID, (unsigned char *)opt_val, sizeof(opt_len));
+            NET_IF_OPT_GET_CHAN_ID, (unsigned char *)opt_val, opt_len);
+    case LUNE_NET_IF_OPT_GET_MAC_ID:
+        if (sizeof(unsigned int) != opt_len) {
+            return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
+        }
+
+        if (LUNE_INVALID_ID == ifp->mac_id) {
+            return ERR_SET_ERR(LUNE_ERR_NOT_SET);
+        }
+
+        *(unsigned int *)opt_val = ifp->mac_id;
+        break;
+    case LUNE_NET_IF_OPT_GET_IPV4_ID:
+        if (sizeof(unsigned int) != opt_len) {
+            return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
+        }
+
+        if (LUNE_INVALID_ID == ifp->ipv4_id) {
+            return ERR_SET_ERR(LUNE_ERR_NOT_SET);
+        }
+
+        *(unsigned int *)opt_val = ifp->ipv4_id;
+        break;
     default:
-        return ifp->drv->get_opt(ifp->net_if_data,
-            opt, (unsigned char *)opt_val, sizeof(opt_len));
+        return ifp->drv->get_opt(ifp->net_if_data, opt, (unsigned char *)opt_val, opt_len);
     }
 
     return 0;

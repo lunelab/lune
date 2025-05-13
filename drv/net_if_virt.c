@@ -43,6 +43,8 @@ typedef struct _net_if_virt {
     lune_atomic16_t ref_cnt;
     unsigned int core_id;
     unsigned int id;
+    lune_mac_addr_t mac;
+    lune_ipv4_addr_t ipv4;
     lune_atomic32_t conn_cnt;
     net_if_conn_type_en conn_type;
     net_if_t *ifp;
@@ -104,6 +106,15 @@ static int net_if_virt_init_virt(net_if_virt_t *virt, const char *name, net_if_t
     lune_atomic16_set(&virt->ref_cnt, 0);
     virt->core_id = CORE_GET_ID();
     virt->id = NET_IF_GET_ID(ifp);
+    /* built-in mac */
+    virt->mac[0] = 0x4c;    /* L */
+    virt->mac[1] = 0x55;    /* U */
+    virt->mac[2] = 0x4e;    /* N */
+    virt->mac[3] = 0x45;    /* E */
+    virt->mac[4] = (unsigned char)virt->core_id;
+    virt->mac[5] = (unsigned char)virt->id;
+    /* built-in ipv4 */
+    virt->ipv4 = virt->mac[2] << 24 | virt->mac[3] << 16 | virt->mac[4] << 8 | virt->mac[5];
     lune_atomic32_set(&virt->conn_cnt, 0);
     virt->conn_type = NET_IF_CONN_TYPE_NONE;
     virt->ifp = ifp;
@@ -380,6 +391,24 @@ static int net_if_virt_get_opt(net_if_virt_t *virt,
 
         *(unsigned int *)opt_val = virt->conn_type;
         break;
+    case NET_IF_OPT_GET_MAC:
+        if (opt_len != LUNE_MAC_ADDR_LEN) {
+            return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
+        }
+
+        LUNE_MAC_CPY(opt_val, virt->mac);
+        break;
+    case NET_IF_OPT_GET_IPV4:
+        if (opt_len != LUNE_IPV4_ADDR_LEN) {
+            return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
+        }
+
+        *(lune_ipv4_addr_t *)opt_val = virt->ipv4;
+        break;
+    case NET_IF_OPT_GET_MASK:
+    case NET_IF_OPT_GET_GW:
+        /* ERR_SET_ERR() unneeded */
+        return -LUNE_ERR_NOT_SET;
     default:
         return ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
     }
