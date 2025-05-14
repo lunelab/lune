@@ -43,18 +43,18 @@ extern "C" {
 #define LUNE_MAC_VID_NONE       (0)
 #define LUNE_MAC_VID_RSVD       (0xfff)
 
-#define LUNE_MAC_CMP(macp1, macp2)                      \
-    (!((*(const unsigned int *)(&(macp1)[0])            \
-        == *(const unsigned int *)(&(macp2)[0]))        \
-        && (*(const unsigned short *)(&(macp1)[4])      \
-        == *(const unsigned short *)(&(macp2)[4]))))
+#define LUNE_MAC_CMP(mac1, mac2)                                                \
+    (!((*(const unsigned int *)(&((const unsigned char *)mac1)[0])              \
+        == *(const unsigned int *)(&((const unsigned char *)mac2)[0]))          \
+        && (*(const unsigned short *)(&((const unsigned char *)mac1)[4])        \
+        == *(const unsigned short *)(&((const unsigned char *)mac2)[4]))))
 
-#define LUNE_MAC_CPY(dst_mac, src_mac)                  \
-    do {                                                \
-        *(unsigned int *)(&(dst_mac)[0]) =              \
-            *(const unsigned int *)(&(src_mac)[0]);     \
-        *(unsigned short *)(&(dst_mac)[4]) =            \
-             *(const unsigned short *)(&(src_mac)[4]);  \
+#define LUNE_MAC_CPY(dst_mac, src_mac)                                          \
+    do {                                                                        \
+        *(unsigned int *)(&((unsigned char *)dst_mac)[0]) =                     \
+            *(const unsigned int *)(&((const unsigned char *)src_mac)[0]);      \
+        *(unsigned short *)(&((unsigned char *)dst_mac)[4]) =                   \
+             *(const unsigned short *)(&((const unsigned char *)src_mac)[4]);   \
     } while (0)
 
 #define LUNE_MAC_ADDR_STR_LEN   18

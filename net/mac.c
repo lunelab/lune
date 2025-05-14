@@ -106,14 +106,12 @@ static inline unsigned int mac_add_mac(const lune_mac_addr_t mac,
     }
     macp->sk = NULL;
 
-    if (LUNE_ID_NET_IF == sub_type) {
-        net_if_hold(sub_entry);
+    sub_entry_hold(sub_entry, sub_type);
 #ifdef LUNE_BUILD_DPDK
-        if (sub_entry_is_dpdk(sub_entry, sub_type)) {
-            MAC_SET_DPDK(macp);
-        }
-#endif
+    if (sub_entry_is_dpdk(sub_entry, sub_type)) {
+        MAC_SET_DPDK(macp);
     }
+#endif
 
     /* referenced by id table */
     mac_hold(macp);
@@ -165,15 +163,14 @@ static inline int mac_del_mac(mac_t *macp)
     }
     lune_assert(!idlist_del_id(macp->id, s_mac_idlist));
 
+    sub_entry_put(macp->sub_entry, macp->sub_type);
+    macp->sub_entry = NULL;
+
     /* de-referenced from hash table */
     mac_put(macp);
 
     /* de-referenced from id table */
     mac_put(macp);
-
-    if (LUNE_ID_NET_IF == macp->sub_type) {
-        net_if_put(macp->sub_entry);
-    }
 
     return 0;
 }
@@ -199,6 +196,9 @@ static void mac_htable_free(mac_t *macp)
     }
 
     lune_log(LUNE_DBG, "mac %d not closed", macp->id);
+
+    sub_entry_put(macp->sub_entry, macp->sub_type);
+    macp->sub_entry = NULL;
 
     mac_put(macp);
 }
@@ -329,7 +329,10 @@ int mac_input(void *sub_entry, lune_id_type_en sub_type, pbuf_t *pbuf)
                 return 0;
             }
 
+            SOCKET_PUSH_CB_SK(macp->sk);
             pcb->cb.recv(pcb->cb.data, (const unsigned char *)ethh, len);
+            SOCKET_POP_CB_SK();
+
             return 0;
         }
     }

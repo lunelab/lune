@@ -541,8 +541,10 @@ int ipv4_input(lune_id_type_en sub_type, void *sub_entry, pbuf_t *pbuf)
                     for ip raw socket, pass whole ip header with payload to registered
                     recv function
                 */
+                SOCKET_PUSH_CB_SK(ipv4p->sk);
                 pcb->cb.recv(pcb->cb.data,
                     (const unsigned char *)n_ipv4h, PBUF_GET_PAYLOAD_LEN(pbuf));
+                SOCKET_POP_CB_SK();
 
                 goto DONE;
             }
@@ -581,10 +583,11 @@ int ipv4_input(lune_id_type_en sub_type, void *sub_entry, pbuf_t *pbuf)
     if (ip_socket_flag) {
         /* ipv4 datagram socket */
         ip_pcb_t *pcb;
+        lune_ip_addr_t src_ip;
 
         lune_assert(NULL != ipv4p->sk);
         pcb = &((socket_t *)ipv4p->sk)->pcb.ip;
-        if (NULL == pcb->cb.recv) {
+        if (NULL == pcb->cb.recvfrom) {
             /*
                 once a socket is bound to a specific ipv4 address without setting
                 callback function, all packets on that ipv4 address will be simply
@@ -593,14 +596,20 @@ int ipv4_input(lune_id_type_en sub_type, void *sub_entry, pbuf_t *pbuf)
             goto DONE;
         }
 
+        src_ip.is_ipv6 = 0;
+        src_ip.ipv4 = h_ipv4h.hdr.src_addr;
+
         /*
-            for ip datagram socket, pass payload with proto field to registered recv
-            function
+            for ip datagram socket, pass source address, protocol along with payload
+            to registered recvfrom function
         */
-        pcb->cb.recv(pcb->cb.data,
+        SOCKET_PUSH_CB_SK(ipv4p->sk);
+        pcb->cb.recvfrom(pcb->cb.data,
+            &src_ip,
+            h_ipv4h.hdr.proto,
             (const unsigned char *)PBUF_GET_PAYLOAD(pbuf),
-            PBUF_GET_PAYLOAD_LEN(pbuf),
-            h_ipv4h.hdr.proto);
+            PBUF_GET_PAYLOAD_LEN(pbuf));
+        SOCKET_POP_CB_SK();
 
         goto DONE;
     }

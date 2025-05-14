@@ -123,13 +123,37 @@ typedef struct _lune_ip_addr {
 } lune_ip_addr_t;
 #pragma pack()
 
-typedef void (*lune_ip_socket_recv_callback_func_t)(void *,
-    const unsigned char *, unsigned int, unsigned char);
+/*
+    callback function for ip datagram socket with the following arguments
+
+    void *
+        callback data by user
+    const lune_ip_addr_t *
+        source address of receiving ip packet (reassembled if fragmented)
+    unsigned char
+        protocol field in ipv4 header or next header field in ipv6 header
+    const unsigned char *
+        pointer to payload of ipv4/ipv6 packet
+    unsigned int
+        payload length
+*/
+typedef void (*lune_ip_socket_recvfrom_callback_func_t)(void *,
+    const lune_ip_addr_t *, unsigned char, const unsigned char *, unsigned int);
 typedef struct _lune_ip_socket_callback {
-    lune_ip_socket_recv_callback_func_t recv;
+    lune_ip_socket_recvfrom_callback_func_t recvfrom;
     void *data;
 } lune_ip_socket_callback_t;
 
+/*
+    callback function for ipv4 raw socket with the following arguments
+
+    void *
+        callback data by user
+    const unsigned char *
+        pointer to ipv4 header
+    unsigned int
+        length of ipv4 header and payload
+*/
 typedef void (*lune_ipv4_socket_recv_callback_func_t)(void *,
     const unsigned char *, unsigned int);
 typedef struct _lune_ipv4_socket_callback {
@@ -137,6 +161,16 @@ typedef struct _lune_ipv4_socket_callback {
     void *data;
 } lune_ipv4_socket_callback_t;
 
+/*
+    callback function for ipv6 raw socket with the following arguments
+
+    void *
+        callback data by user
+    const unsigned char *
+        pointer to ipv6 header
+    unsigned int
+        length of ipv6 header and payload
+*/
 typedef void (*lune_ipv6_socket_recv_callback_func_t)(void *,
     const unsigned char *, unsigned int);
 typedef struct _lune_ipv6_socket_callback {

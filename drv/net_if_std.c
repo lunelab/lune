@@ -313,7 +313,10 @@ static int get_ipv4_gateway(const char *net_if_name, struct in_addr *gw) {
     }
 
     /* skip the header line */
-    fgets(line, sizeof(line), fp);
+    if (NULL == fgets(line, sizeof(line), fp)) {
+        fclose(fp);
+        return -1;
+    }
 
     while (NULL != fgets(line, sizeof(line), fp)) {
         if (11 == sscanf(line, "%s %x %x %x %d %d %d %x %d %d %d",
@@ -372,12 +375,18 @@ static int net_if_std_init_std(net_if_std_t *std, const char *name)
     if (0 == ioctl(fd, SIOCGIFADDR, &ifr)) {
         std->ipv4 = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
         NET_IF_STD_SET_IPV4(std);
+    } else {
+        std->ipv4 = 0;
+        NET_IF_STD_CLEAR_IPV4(std);
     }
 
     /* get subnet mask */
     if (0 == ioctl(fd, SIOCGIFNETMASK, &ifr)) {
         std->mask = ((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr.s_addr;
         NET_IF_STD_SET_MASK(std);
+    } else {
+        std->mask = 0;
+        NET_IF_STD_CLEAR_MASK(std);
     }
 
     /* get gateway */
@@ -385,6 +394,9 @@ static int net_if_std_init_std(net_if_std_t *std, const char *name)
     if (0 == get_ipv4_gateway(name, &gw)) {
         std->gw = gw.s_addr;
         NET_IF_STD_SET_GW(std);
+    } else {
+        std->gw = 0;
+        NET_IF_STD_CLEAR_GW(std);
     }
 
     memset(&std->send_ring, 0x00, sizeof(net_if_std_ring_t));

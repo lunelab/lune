@@ -220,7 +220,7 @@ int icmpv4_input(ip_t *ipv4p, const void *ipv4h, pbuf_t *rx_pbuf)
     icmp_pcb_t *pcb;
     lune_icmp_hdr_t *icmph;
     char ipv4_str[LUNE_IPV4_MAX_ADDR_STR_LEN];
-    lune_ip_addr_t dst_ip;
+    lune_ip_addr_t peer_ip;
     int err;
 
 #ifdef LUNE_DEBUG
@@ -238,11 +238,11 @@ int icmpv4_input(ip_t *ipv4p, const void *ipv4h, pbuf_t *rx_pbuf)
 
         pcb = &sk->pcb.icmp;
         if (likely(NULL != pcb->cb.recvfrom)) {
-            dst_ip.is_ipv6 = 0;
-            dst_ip.ipv4 = ((const lune_ipv4_hdr_t *)ipv4h)->src_addr;
+            peer_ip.is_ipv6 = 0;
+            peer_ip.ipv4 = ((const lune_ipv4_hdr_t *)ipv4h)->src_addr;
 
             SOCKET_PUSH_CB_SK(sk);
-            pcb->cb.recvfrom(pcb->cb.data, (const lune_ip_addr_t *)&dst_ip,
+            pcb->cb.recvfrom(pcb->cb.data, (const lune_ip_addr_t *)&peer_ip,
                 (const unsigned char *)icmph, LUNE_ICMP_HDR_LEN + PBUF_GET_PAYLOAD_LEN(rx_pbuf));
             SOCKET_POP_CB_SK();
         }
@@ -254,15 +254,15 @@ int icmpv4_input(ip_t *ipv4p, const void *ipv4h, pbuf_t *rx_pbuf)
     if (LUNE_ICMPV4_ECHO_REQUEST == icmph->type) {
         unsigned char lbuf[PBUF_MAX_RSVD_HDR_LEN + IP_MAX_PAYLOAD_BUF_SIZE];
         pbuf_t tx_pbuf;
-        dst_ip.is_ipv6 = 0;
-        dst_ip.ipv4 = ((const lune_ipv4_hdr_t *)ipv4h)->src_addr;
+        peer_ip.is_ipv6 = 0;
+        peer_ip.ipv4 = ((const lune_ipv4_hdr_t *)ipv4h)->src_addr;
 
         pbuf_init_send_pbuf(&tx_pbuf, lbuf, PBUF_GET_PAYLOAD_LEN(rx_pbuf), PBUF_MAX_RSVD_HDR_LEN, 0);
         memcpy(PBUF_GET_PAYLOAD(&tx_pbuf),
             PBUF_GET_PAYLOAD(rx_pbuf), PBUF_GET_PAYLOAD_LEN(rx_pbuf));
 
         if (0 != (err = icmp_output(ipv4p,
-            &dst_ip, LUNE_ICMPV4_ECHO_REPLY, 0, icmph->data, &tx_pbuf))) {
+            &peer_ip, LUNE_ICMPV4_ECHO_REPLY, 0, icmph->data, &tx_pbuf))) {
             lune_log(LUNE_INFO, "failed to reply to ping %s request",
                 lune_ipv4_to_str(ipv4p->ipv4.ip, ipv4_str, LUNE_IPV4_MAX_ADDR_STR_LEN));
         }
@@ -278,7 +278,7 @@ int icmpv6_input(ip_t *ipv6p, const void *ipv6h, pbuf_t *pbuf)
     socket_t *sk, psd_sk;
     icmp_pcb_t *pcb;
     lune_icmp_hdr_t *icmph;
-    lune_ip_addr_t dst_ip;
+    lune_ip_addr_t src_ip;
 
     icmph = (lune_icmp_hdr_t *)pbuf_move_up(pbuf, LUNE_ICMP_HDR_LEN);
 
@@ -299,11 +299,11 @@ int icmpv6_input(ip_t *ipv6p, const void *ipv6h, pbuf_t *pbuf)
 
         pcb = &sk->pcb.icmp;
         if (likely(NULL != pcb->cb.recvfrom)) {
-            dst_ip.is_ipv6 = 1;
-            LUNE_IPV6_CPY(&dst_ip.ipv6, &((const lune_ipv6_hdr_t *)ipv6h)->src_addr);
+            src_ip.is_ipv6 = 1;
+            LUNE_IPV6_CPY(&src_ip.ipv6, &((const lune_ipv6_hdr_t *)ipv6h)->src_addr);
 
             SOCKET_PUSH_CB_SK(sk);
-            pcb->cb.recvfrom(pcb->cb.data, (const lune_ip_addr_t *)&dst_ip,
+            pcb->cb.recvfrom(pcb->cb.data, (const lune_ip_addr_t *)&src_ip,
                 (const unsigned char *)icmph, LUNE_ICMP_HDR_LEN + PBUF_GET_PAYLOAD_LEN(pbuf));
             SOCKET_POP_CB_SK();
         }

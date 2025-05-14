@@ -22,9 +22,9 @@
 
 #define LUNE_IPV6_MAX_PAYLOAD_LEN           (65535)
 
-#define LUNE_IPV6_CMP(ipv6p1, ipv6p2)       \
-    (!(*(const unsigned long long *)(ipv6p1) == *(const unsigned long long *)(ipv6p2)   \
-    && *((const unsigned long long *)(ipv6p1) + 1) == *((const unsigned long long *)(ipv6p2) + 1)))
+#define LUNE_IPV6_CMP(ipv6a, ipv6b)         \
+    (!(*(const unsigned long long *)(ipv6a) == *(const unsigned long long *)(ipv6b)     \
+    && *((const unsigned long long *)(ipv6a) + 1) == *((const unsigned long long *)(ipv6b) + 1)))
 
 #define LUNE_IPV6_CPY(dst, src)             \
     do {                                    \

@@ -548,8 +548,15 @@ int ipv6_input(lune_id_type_en sub_type, void *sub_entry, pbuf_t *pbuf)
                     goto DONE;
                 }
 
+                /*
+                    for ip raw socket, pass whole ip header with payload to registered
+                    recv function
+                */
+                SOCKET_PUSH_CB_SK(ipv6p->sk);
                 pcb->cb.recv(pcb->cb.data,
                     (const unsigned char *)ipv6h, PBUF_GET_PAYLOAD_LEN(pbuf));
+                SOCKET_POP_CB_SK();
+
                 goto DONE;
             }
 
@@ -589,10 +596,11 @@ SKIP_IPV6:
     if (ip_socket_flag) {
         /* ipv6 datagram socket */
         ip_pcb_t *pcb;
+        lune_ip_addr_t src_ip;
 
         lune_assert(NULL != ipv6p->sk);
         pcb = &((socket_t *)ipv6p->sk)->pcb.ip;
-        if (NULL == pcb->cb.recv) {
+        if (NULL == pcb->cb.recvfrom) {
             /*
                 once a socket is bound to a specific ipv6 address without setting
                 callback function, all packets on that ipv6 address will be simply
@@ -601,14 +609,20 @@ SKIP_IPV6:
             goto DONE;
         }
 
+        src_ip.is_ipv6 = 1;
+        LUNE_IPV6_CPY(&src_ip.ipv6, &ipv6h->src_addr);
+
         /*
-            for ip datagram socket, pass payload with proto field to registered recv
-            function
+            for ip datagram socket, pass source address, protocol along with payload
+            to registered recvfrom function
         */
-        pcb->cb.recv(pcb->cb.data,
+        SOCKET_PUSH_CB_SK(ipv6p->sk);
+        pcb->cb.recvfrom(pcb->cb.data,
+            &src_ip,
+            ipv6h->next_hdr,
             (const unsigned char *)PBUF_GET_PAYLOAD(pbuf),
-            PBUF_GET_PAYLOAD_LEN(pbuf),
-            ipv6h->next_hdr);
+            PBUF_GET_PAYLOAD_LEN(pbuf));
+        SOCKET_POP_CB_SK();
 
         goto DONE;
     }

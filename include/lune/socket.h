@@ -17,7 +17,7 @@ typedef enum _lune_socket_type {
     LUNE_SOCKET_MAC,
     LUNE_SOCKET_IP,     /* ipv4/ipv6 datagram socket */
     LUNE_SOCKET_IPV4,   /* ipv4 raw socket */
-    LUNE_SOCKET_IPV6,   /* reserved, not supported yet */
+    LUNE_SOCKET_IPV6,   /* ipv6 raw socket */
     LUNE_SOCKET_UDP,
     LUNE_SOCKET_TCP,
     LUNE_SOCKET_TCP_LISTEN,

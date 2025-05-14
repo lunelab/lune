@@ -648,12 +648,20 @@ static int net_if_del_net_if(net_if_t *ifp)
     }
 
     if (LUNE_INVALID_ID != ifp->ipv4_id) {
-        lune_assert(!lune_del_ipv4(ifp->ipv4_id));
+        /*
+            ipv4 deletion may fail if interface is being deleted due to core quitting,
+            as all ipv4 addresses have already been removed
+        */
+        (void)lune_del_ipv4(ifp->ipv4_id);
         ifp->ipv4_id = LUNE_INVALID_ID;
     }
 
     if (LUNE_INVALID_ID != ifp->mac_id) {
-        lune_assert(!lune_del_mac(ifp->mac_id));
+        /*
+            mac deletion may fail if interface is being deleted due to core quitting,
+            as all mac addresses have already been removed
+        */
+        (void)lune_del_mac(ifp->mac_id);
         ifp->mac_id = LUNE_INVALID_ID;
     }
 
@@ -951,6 +959,14 @@ static int net_if_disable_net_if(net_if_t *ifp)
             " while disabling it", ifp->name);
         err = ERR_SET_ERR(LUNE_ERR_NET_IF_INTERNAL);
         goto ERR_2;
+    }
+
+    if (LUNE_INVALID_ID != ifp->mac_id) {
+        /*
+            mac disablement may fail if interface is being disabled due to core quitting,
+            as all mac addresses have already been removed
+        */
+        (void)lune_disable_mac(ifp->mac_id);
     }
 
     timer_del_timer(&ifp->max_tx_data_rate_tmr);
@@ -2803,6 +2819,22 @@ int lune_get_net_if_opt(unsigned int id,
 
         *(unsigned int *)opt_val = ifp->mac_id;
         break;
+    case LUNE_NET_IF_OPT_GET_MAC_ADDR:
+        if (sizeof(lune_mac_addr_t) != opt_len) {
+            return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
+        }
+
+        if (LUNE_INVALID_ID == ifp->mac_id) {
+            return ERR_SET_ERR(LUNE_ERR_NOT_SET);
+        }
+
+        lune_mac_info_t info;
+        if (0 != (err = lune_get_mac_opt(ifp->mac_id, LUNE_MAC_OPT_GET_INFO, &info, sizeof(info)))) {
+            return err;
+        }
+
+        LUNE_MAC_CPY(opt_val, info.mac);
+        break;
     case LUNE_NET_IF_OPT_GET_IPV4_ID:
         if (sizeof(unsigned int) != opt_len) {
             return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
@@ -2813,6 +2845,23 @@ int lune_get_net_if_opt(unsigned int id,
         }
 
         *(unsigned int *)opt_val = ifp->ipv4_id;
+        break;
+    case LUNE_NET_IF_OPT_GET_IPV4_ADDR:
+        if (sizeof(lune_ipv4_addr_t) != opt_len) {
+            return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
+        }
+
+        if (LUNE_INVALID_ID == ifp->ipv4_id) {
+            return ERR_SET_ERR(LUNE_ERR_NOT_SET);
+        }
+
+        lune_ip_addr_t ip;
+        if (0 != (err = lune_get_ip_opt(ifp->ipv4_id, LUNE_IP_OPT_GET_ADDR, &ip, sizeof(ip)))) {
+            return err;
+        }
+
+        lune_assert(!ip.is_ipv6);
+        *(lune_ipv4_addr_t *)opt_val = ip.ipv4;
         break;
     default:
         return ifp->drv->get_opt(ifp->net_if_data, opt, (unsigned char *)opt_val, opt_len);

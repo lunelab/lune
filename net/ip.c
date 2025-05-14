@@ -117,6 +117,11 @@ static void ip_idtable_free(ip_t *ipp)
 
 static void ip_htable_free(ip_t *ipp)
 {
+    IP_SET_DELETED(ipp);
+
+    sub_entry_put(ipp->sub_entry, ipp->sub_type);
+    ipp->sub_entry = NULL;
+
     ip_put(ipp);
 }
 
@@ -274,7 +279,7 @@ static int ip_socket_create(socket_t *sk)
 {
     ip_pcb_t *pcb = &sk->pcb.ip;
 
-    pcb->cb.recv = NULL;
+    pcb->cb.recvfrom = NULL;
     pcb->cb.data = NULL;
     pcb->ipp = NULL;
 
@@ -404,7 +409,7 @@ static int ip_socket_set_opt(socket_t *sk,
             return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
         }
 
-        pcb->cb.recv = ((const lune_ip_socket_callback_t *)opt_val)->recv;
+        pcb->cb.recvfrom = ((const lune_ip_socket_callback_t *)opt_val)->recvfrom;
         pcb->cb.data = ((const lune_ip_socket_callback_t *)opt_val)->data;
         break;
     default:
@@ -419,7 +424,7 @@ static int ip_socket_close(socket_t *sk)
     ip_t *ipp;
     ip_pcb_t *pcb = &sk->pcb.ip;
 
-    pcb->cb.recv = NULL;
+    pcb->cb.recvfrom = NULL;
 
     ipp = pcb->ipp;
     if (NULL != ipp) {
