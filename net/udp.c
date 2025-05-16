@@ -156,13 +156,13 @@ int udp_input_unicast(ip_t *ipp, const void *iph, pbuf_t *pbuf)
 static unsigned short udp_socket_get_max_hdr_len(socket_t *sk)
 {
     udp_pcb_t *pcb = &sk->pcb.udp;
-    unsigned short sub_entry_hdr_len;
+    unsigned short lower_entry_hdr_len;
 
     lune_assert(NULL != pcb->ipp);
 
-    sub_entry_hdr_len = pbuf_get_max_hdr_len(
+    lower_entry_hdr_len = pbuf_get_max_hdr_len(
         IP_IS_IPV6(pcb->ipp) ? LUNE_ID_IPV6 : LUNE_ID_IPV4, pcb->ipp);
-    return LUNE_UDP_HDR_LEN + sub_entry_hdr_len;
+    return LUNE_UDP_HDR_LEN + lower_entry_hdr_len;
 }
 
 static int udp_socket_create(socket_t *sk)

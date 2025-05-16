@@ -135,7 +135,7 @@ static void nb_req_timeout(neighbor_t *nb)
     lune_ip_addr_t addr;
 
     ipp = nb->ipp;
-    lune_assert(LUNE_ID_MAC == ipp->sub_type);
+    lune_assert(LUNE_ID_MAC == ipp->lower_type);
     lune_assert(NB_STATE_REQ == nb->state);
 
     if (0 == nb->retrans--) {
@@ -647,7 +647,7 @@ int lune_resolve_mac(unsigned int ip_id, const lune_ip_addr_t *dst_addr)
         return ERR_SET_ERR(LUNE_ERR_ID_NOT_FOUND);
     }
 
-    if (LUNE_ID_MAC != ipp->sub_type) {
+    if (LUNE_ID_MAC != ipp->lower_type) {
         return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
     }
 
@@ -661,7 +661,7 @@ int lune_resolve_mac(unsigned int ip_id, const lune_ip_addr_t *dst_addr)
     }
 
     /* send arp request and put packet on hold till response received */
-    return nb_request_and_cache_pkt(dst_addr, ipp, (mac_t *)ipp->sub_entry, NULL);
+    return nb_request_and_cache_pkt(dst_addr, ipp, (mac_t *)ipp->lower_entry, NULL);
 }
 
 int lune_get_resolved_mac(const lune_ip_addr_t *dst_addr, lune_mac_addr_t dst_mac, unsigned int net_if_id)

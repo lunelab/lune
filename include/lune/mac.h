@@ -123,18 +123,18 @@ int lune_str_to_mac(const char *str, lune_mac_addr_t mac);
 char *lune_mac_to_str(const lune_mac_addr_t mac, char *buf, int buf_size);
 
 unsigned int lune_add_mac(const lune_mac_addr_t mac,
-    lune_id_type_en sub_type, unsigned int sub_id);
+    lune_id_type_en lower_type, unsigned int sub_id);
 unsigned int lune_add_mac_with_vlan(const lune_mac_addr_t mac,
-    lune_id_type_en sub_type, unsigned int sub_id, unsigned short vid);
-unsigned int lune_add_mac_with_qinq(const lune_mac_addr_t mac, lune_id_type_en sub_type,
+    lune_id_type_en lower_type, unsigned int sub_id, unsigned short vid);
+unsigned int lune_add_mac_with_qinq(const lune_mac_addr_t mac, lune_id_type_en lower_type,
     unsigned int sub_id, unsigned short outer_vid, unsigned short inner_vid);
 int lune_del_mac(unsigned int id);
 
-int lune_get_mac(const lune_mac_addr_t mac, lune_id_type_en sub_type,
+int lune_get_mac(const lune_mac_addr_t mac, lune_id_type_en lower_type,
     unsigned int sub_id, unsigned int *mac_id);
-int lune_get_mac_with_vlan(const lune_mac_addr_t mac, lune_id_type_en sub_type,
+int lune_get_mac_with_vlan(const lune_mac_addr_t mac, lune_id_type_en lower_type,
     unsigned int sub_id, unsigned short vid, unsigned int *mac_id);
-int lune_get_mac_with_qinq(const lune_mac_addr_t mac, lune_id_type_en sub_type,
+int lune_get_mac_with_qinq(const lune_mac_addr_t mac, lune_id_type_en lower_type,
     unsigned int sub_id, unsigned short outer_vid, unsigned short inner_vid, unsigned int *mac_id);
 
 int lune_enable_mac(unsigned int id);

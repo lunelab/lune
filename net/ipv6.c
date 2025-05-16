@@ -416,12 +416,12 @@ static inline int ipv6_output_done(ip_t *ipv6p, pbuf_t *pbuf, const lune_ipv6_ad
     int err;
     unsigned long long bytes;
 
-    switch (ipv6p->sub_type) {
+    switch (ipv6p->lower_type) {
     case LUNE_ID_MAC:
     {
         lune_mac_addr_t dst_mac;
         int ret;
-        mac_t *macp = (mac_t *)ipv6p->sub_entry;
+        mac_t *macp = (mac_t *)ipv6p->lower_entry;
 
         bytes = PBUF_GET_PAYLOAD_LEN(pbuf) + PBUF_GET_HDR_LEN(pbuf);
         ret = ipv6_route(macp, dst_mac, ipv6p, dst_addr, pbuf);
@@ -443,7 +443,7 @@ static inline int ipv6_output_done(ip_t *ipv6p, pbuf_t *pbuf, const lune_ipv6_ad
     }
 }
 
-int ipv6_input(lune_id_type_en sub_type, void *sub_entry, pbuf_t *pbuf)
+int ipv6_input(lune_id_type_en lower_type, void *lower_entry, pbuf_t *pbuf)
 {
     const lune_ipv6_hdr_t *ipv6h;
     lune_eth_hdr_t *ethh;
@@ -465,9 +465,9 @@ int ipv6_input(lune_id_type_en sub_type, void *sub_entry, pbuf_t *pbuf)
         return ERR_SET_ERR(LUNE_ERR_IPV6_MALFORM_PKT);
     }
 
-    switch (sub_type) {
+    switch (lower_type) {
     case LUNE_ID_MAC:
-        if (NULL == sub_entry) {
+        if (NULL == lower_entry) {
             if (IPV6_IS_MULTICAST_IP(&ipv6h->dst_addr)
                 && IPV6_IS_SOLICIT_NODE_MULTICAST_IP(&ipv6h->dst_addr)
                 && LUNE_IP_PROTO_ICMPV6 == ipv6h->next_hdr) {
@@ -485,8 +485,8 @@ int ipv6_input(lune_id_type_en sub_type, void *sub_entry, pbuf_t *pbuf)
 
         ipv6.flags = 0;
         IP_SET_IPV6(&ipv6);
-        ipv6.sub_type = sub_type;
-        ipv6.sub_entry = sub_entry;
+        ipv6.lower_type = lower_type;
+        ipv6.lower_entry = lower_entry;
         ipv6.ifp = NET_IF_GET_CURR_NET_IF();
         if (NULL == (ipv6p = htable_find((void *)&ipv6, g_ip_htable))) {
             if (IPV6_IS_MULTICAST_IP(&ipv6.ipv6.ip)) {
@@ -662,12 +662,12 @@ int ipv6_output(ip_t *ipv6p,
     int err;
 
     total_payload_len = PBUF_GET_HDR_LEN(pbuf) + PBUF_GET_PAYLOAD_LEN(pbuf);
-    if ((total_payload_len + LUNE_IPV6_HDR_LEN) > mac_get_mtu(ipv6p->sub_entry)) {
+    if ((total_payload_len + LUNE_IPV6_HDR_LEN) > mac_get_mtu(ipv6p->lower_entry)) {
         hdr_len = LUNE_IPV6_HDR_LEN + LUNE_IPV6_FRAG_HDR_LEN;
         (void)pbuf_move_down(pbuf, hdr_len);
 
 
-        max_len = ipv6_get_frag_pkt_max_len(ipv6p->sub_entry);
+        max_len = ipv6_get_frag_pkt_max_len(ipv6p->lower_entry);
         left_len = total_payload_len - max_len;
         t = LUNE_IPV6_FRAG_MF;
         pbuf_truncate_pbuf(pbuf, max_len);
@@ -682,7 +682,7 @@ int ipv6_output(ip_t *ipv6p,
     pbuf->l3_len = hdr_len;
     PBUF_SET_L3_IPV6(pbuf);
 
-    lune_assert(LUNE_ID_MAC == ipv6p->sub_type);
+    lune_assert(LUNE_ID_MAC == ipv6p->lower_type);
 
     ipv6h = (lune_ipv6_hdr_t *)PBUF_GET_HDR(pbuf);
 
@@ -768,8 +768,8 @@ int ipv6_output_nofrag(ip_t *ipv6p,
     PBUF_SET_L3_IPV6(pbuf);
 
 #ifdef LUNE_DEBUG
-    lune_assert(LUNE_ID_MAC == ipv6p->sub_type);
-    lune_assert((PBUF_GET_PAYLOAD_LEN(pbuf) + hdr_len) <= mac_get_mtu(ipv6p->sub_entry));
+    lune_assert(LUNE_ID_MAC == ipv6p->lower_type);
+    lune_assert((PBUF_GET_PAYLOAD_LEN(pbuf) + hdr_len) <= mac_get_mtu(ipv6p->lower_entry));
 #endif
 
     ipv6_build_hdr(ipv6h, &ipv6p->ipv6.ip, dst_addr, IPV6_DEFAULT_TRF_CLASS,
@@ -778,11 +778,11 @@ int ipv6_output_nofrag(ip_t *ipv6p,
 }
 
 static inline unsigned int ipv6_add_ipv6(const lune_ipv6_addr_t *ipv6,
-    lune_id_type_en sub_type, void *sub_entry)
+    lune_id_type_en lower_type, void *lower_entry)
 {
     ip_t *ipv6p;
 
-    lune_assert(NULL != sub_entry);
+    lune_assert(NULL != lower_entry);
 
     if (NULL == (ipv6p = lune_malloc(sizeof(ip_t)))) {
         goto ERR_1;
@@ -799,9 +799,9 @@ static inline unsigned int ipv6_add_ipv6(const lune_ipv6_addr_t *ipv6,
     memset(&ipv6p->stats, 0x00, sizeof(lune_ip_stats_t));
     ipv6p->ref_cnt = 0;
 
-    ipv6p->sub_entry = sub_entry;
-    ipv6p->sub_type = sub_type;
-    sub_entry_hold(sub_entry, sub_type);
+    ipv6p->lower_entry = lower_entry;
+    ipv6p->lower_type = lower_type;
+    lower_entry_hold(lower_entry, lower_type);
 
     if (ip_get_mtu(ipv6p) < LUNE_IPV6_MIN_MTU) {
         ERR_SET_ERR(LUNE_ERR_INVALID_MTU);
@@ -814,15 +814,15 @@ static inline unsigned int ipv6_add_ipv6(const lune_ipv6_addr_t *ipv6,
     ipv6p->sk = ipv6p->tcp_listen_sk = NULL;
     ipv6p->flags = 0;
     IP_SET_IPV6(ipv6p);
-    if (LUNE_ID_MAC == sub_type
-        && LUNE_ID_NET_IF == MAC_GET_SUB_TYPE(sub_entry)) {
-        ipv6p->ifp = MAC_GET_SUB_ENTRY(sub_entry);
+    if (LUNE_ID_MAC == lower_type
+        && LUNE_ID_NET_IF == MAC_GET_LOWER_TYPE(lower_entry)) {
+        ipv6p->ifp = MAC_GET_LOWER_ENTRY(lower_entry);
     } else {
         ipv6p->ifp = NULL;
     }
 
 #ifdef LUNE_BUILD_DPDK
-    if (sub_entry_is_dpdk(sub_entry, sub_type)) {
+    if (lower_entry_is_dpdk(lower_entry, lower_type)) {
         IP_SET_DPDK(ipv6p);
     }
 #endif
@@ -843,7 +843,7 @@ static inline unsigned int ipv6_add_ipv6(const lune_ipv6_addr_t *ipv6,
 ERR_4:
     lune_assert(!idtable_remove(ipv6p->id, g_ip_idtable));
 
-    sub_entry_put(sub_entry, sub_type);
+    lower_entry_put(lower_entry, lower_type);
 
 ERR_3:
     lune_assert(!idlist_del_id(ipv6p->id, g_ip_idlist));
@@ -861,8 +861,8 @@ static inline int ipv6_del_ipv6(ip_t *ipv6p)
 
     lune_assert(!htable_remove(ipv6p, g_ip_htable));
 
-    sub_entry_put(ipv6p->sub_entry, ipv6p->sub_type);
-    ipv6p->sub_entry = NULL;
+    lower_entry_put(ipv6p->lower_entry, ipv6p->lower_type);
+    ipv6p->lower_entry = NULL;
 
     lune_assert(!idtable_remove(ipv6p->id, g_ip_idtable));
     lune_assert(!idlist_del_id(ipv6p->id, g_ip_idlist));
@@ -877,9 +877,9 @@ static inline int ipv6_del_ipv6(ip_t *ipv6p)
 }
 
 unsigned int lune_add_ipv6(lune_ipv6_addr_t *ipv6,
-    lune_id_type_en sub_type, unsigned int sub_id)
+    lune_id_type_en lower_type, unsigned int sub_id)
 {
-    void *sub_entry;
+    void *lower_entry;
 
     SCHED_CHECK_POINT();
 
@@ -888,17 +888,17 @@ unsigned int lune_add_ipv6(lune_ipv6_addr_t *ipv6,
         return LUNE_INVALID_ID;
     }
 
-    if (LUNE_ID_MAC != sub_type) {
+    if (LUNE_ID_MAC != lower_type) {
         ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
         return LUNE_INVALID_ID;
     }
 
-    if (NULL == (sub_entry = id_get_entry(sub_type, sub_id))) {
+    if (NULL == (lower_entry = id_get_entry(lower_type, sub_id))) {
         ERR_SET_ERR(LUNE_ERR_ID_NOT_FOUND);
         return LUNE_INVALID_ID;
     }
 
-    return ipv6_add_ipv6(ipv6, sub_type, sub_entry);
+    return ipv6_add_ipv6(ipv6, lower_type, lower_entry);
 }
 
 int lune_del_ipv6(unsigned int id)
@@ -926,10 +926,10 @@ int lune_del_ipv6(unsigned int id)
     return ipv6_del_ipv6(ipv6p);
 }
 
-int lune_get_ipv6(lune_ipv6_addr_t *ipv6, lune_id_type_en sub_type, unsigned int sub_id, unsigned int *ip_id)
+int lune_get_ipv6(lune_ipv6_addr_t *ipv6, lune_id_type_en lower_type, unsigned int sub_id, unsigned int *ip_id)
 {
     ip_t *ipv6p;
-    void *sub_entry;
+    void *lower_entry;
     void *ifp;
 
     SCHED_CHECK_POINT();
@@ -943,25 +943,25 @@ int lune_get_ipv6(lune_ipv6_addr_t *ipv6, lune_id_type_en sub_type, unsigned int
         return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
     }
 
-    if (LUNE_ID_MAC != sub_type) {
+    if (LUNE_ID_MAC != lower_type) {
         *ip_id = LUNE_INVALID_ID;
         return ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
     }
 
-    if (NULL == (sub_entry = id_get_entry(sub_type, sub_id))) {
+    if (NULL == (lower_entry = id_get_entry(lower_type, sub_id))) {
         *ip_id = LUNE_INVALID_ID;
         return ERR_SET_ERR(LUNE_ERR_ID_NOT_FOUND);
     }
 
-    if (LUNE_ID_MAC == sub_type
-        && LUNE_ID_NET_IF == MAC_GET_SUB_TYPE(sub_entry)) {
-        ifp = MAC_GET_SUB_ENTRY(sub_entry);
+    if (LUNE_ID_MAC == lower_type
+        && LUNE_ID_NET_IF == MAC_GET_LOWER_TYPE(lower_entry)) {
+        ifp = MAC_GET_LOWER_ENTRY(lower_entry);
     } else {
         ifp = NULL;
     }
 
     if (NULL == (ipv6p = ip_get_ip_by_addr((void *)ipv6,
-        1, sub_type, sub_entry, ifp))) {
+        1, lower_type, lower_entry, ifp))) {
         *ip_id = LUNE_INVALID_ID;
         /* ERR_SET_ERR() unneeded */
         return -LUNE_ERR_NOT_EXIST;
@@ -1176,12 +1176,12 @@ int lune_str_to_ipv6(const char *str, lune_ipv6_addr_t *addr)
 
 unsigned short ipv6_get_max_hdr_len(ip_t *ipv6p)
 {
-    unsigned short sub_entry_hdr_len;
+    unsigned short lower_entry_hdr_len;
 
     lune_assert(NULL != ipv6p);
 
-    sub_entry_hdr_len = pbuf_get_max_hdr_len(ipv6p->sub_type, ipv6p->sub_entry);
-    return IPV6_MAX_HDR_LEN + sub_entry_hdr_len;
+    lower_entry_hdr_len = pbuf_get_max_hdr_len(ipv6p->lower_type, ipv6p->lower_entry);
+    return IPV6_MAX_HDR_LEN + lower_entry_hdr_len;
 }
 
 static int ipv6_socket_create(socket_t *sk)
@@ -1251,8 +1251,8 @@ static int ipv6_socket_sendto(socket_t *sk, const unsigned char *buf, unsigned i
 
     pcb = &sk->pcb.ipv6;
 
-    lune_assert(LUNE_ID_MAC == pcb->ipv6p->sub_type);
-    if (unlikely(LUNE_IPV6_HDR_LEN + len > ((mac_t *)(pcb->ipv6p->sub_entry))->mtu)) {
+    lune_assert(LUNE_ID_MAC == pcb->ipv6p->lower_type);
+    if (unlikely(LUNE_IPV6_HDR_LEN + len > ((mac_t *)(pcb->ipv6p->lower_entry))->mtu)) {
         return ERR_SET_ERR(LUNE_ERR_OVERSIZED_PKT);
     }
 
@@ -1339,7 +1339,7 @@ static unsigned short ipv6_socket_get_max_hdr_len(socket_t *sk)
 {
     ip_t *ipv6p = sk->pcb.ipv6.ipv6p;
 
-    lune_assert(LUNE_ID_MAC == ipv6p->sub_type);
+    lune_assert(LUNE_ID_MAC == ipv6p->lower_type);
 
     return ipv6_get_max_hdr_len(ipv6p);
 }

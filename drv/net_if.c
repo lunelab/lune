@@ -480,10 +480,10 @@ net_if_t *net_if_get_net_if_by_entry(lune_id_type_en type, void *entry)
     case LUNE_ID_NET_IF:
         return entry;
     case LUNE_ID_MAC:
-        return net_if_get_net_if_by_entry(MAC_GET_SUB_TYPE(entry), MAC_GET_SUB_ENTRY(entry));
+        return net_if_get_net_if_by_entry(MAC_GET_LOWER_TYPE(entry), MAC_GET_LOWER_ENTRY(entry));
     case LUNE_ID_IPV4:
     case LUNE_ID_IPV6:
-        return net_if_get_net_if_by_entry(IP_GET_SUB_TYPE(entry), IP_GET_SUB_ENTRY(entry));
+        return net_if_get_net_if_by_entry(IP_GET_LOWER_TYPE(entry), IP_GET_LOWER_ENTRY(entry));
     case LUNE_ID_SOCKET:
         /* fall through: not supported */
     default:

@@ -49,7 +49,7 @@ __thread void *g_ip_idtable = NULL;
 __thread void *g_ip_htable = NULL;
 
 ip_t *ip_get_ip_by_addr(void *addr,
-    unsigned int is_ipv6, lune_id_type_en sub_type, void *sub_entry, void *ifp)
+    unsigned int is_ipv6, lune_id_type_en lower_type, void *lower_entry, void *ifp)
 {
     ip_t ip;
 
@@ -62,8 +62,8 @@ ip_t *ip_get_ip_by_addr(void *addr,
         ip.ipv4.ip = *(lune_ipv4_addr_t *)addr;
     }
 
-    ip.sub_type = sub_type;
-    ip.sub_entry = sub_entry;
+    ip.lower_type = lower_type;
+    ip.lower_entry = lower_entry;
     ip.ifp = ifp;
 
     return htable_find((void *)&ip, g_ip_htable);
@@ -105,8 +105,8 @@ void ip_set_net_if_hw_csum_flags(ip_t *ipp)
 
 unsigned short ip_get_mtu(ip_t *ipp)
 {
-    lune_assert(LUNE_ID_MAC == ipp->sub_type);
-    return mac_get_mtu((mac_t *)ipp->sub_entry);
+    lune_assert(LUNE_ID_MAC == ipp->lower_type);
+    return mac_get_mtu((mac_t *)ipp->lower_entry);
 }
 
 static void ip_idtable_free(ip_t *ipp)
@@ -119,8 +119,8 @@ static void ip_htable_free(ip_t *ipp)
 {
     IP_SET_DELETED(ipp);
 
-    sub_entry_put(ipp->sub_entry, ipp->sub_type);
-    ipp->sub_entry = NULL;
+    lower_entry_put(ipp->lower_entry, ipp->lower_type);
+    ipp->lower_entry = NULL;
 
     ip_put(ipp);
 }
@@ -137,11 +137,11 @@ static int ip_htable_compare(ip_t *ipp1, ip_t *ipp2)
         && (IP_IS_IPV6(ipp1)
         ? (!LUNE_IPV6_CMP(ipp1->ipv6.ip.addr, ipp2->ipv6.ip.addr))
         : ipp1->ipv4.ip == ipp2->ipv4.ip)
-        && ipp1->sub_type == ipp2->sub_type
+        && ipp1->lower_type == ipp2->lower_type
         /* ip must be unique for mac-based network on an interface */
         && ipp1->ifp == ipp2->ifp
-        && (ipp1->sub_type == LUNE_ID_MAC
-        || ipp1->sub_entry == ipp2->sub_entry)));
+        && (ipp1->lower_type == LUNE_ID_MAC
+        || ipp1->lower_entry == ipp2->lower_entry)));
 }
 
 int lune_get_ip_opt(unsigned int id,
@@ -168,8 +168,8 @@ int lune_get_ip_opt(unsigned int id,
         if (sizeof(lune_ip_sub_info_t) != opt_len) {
             return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
         }
-        ((lune_ip_sub_info_t *)opt_val)->id = sub_entry_get_id(ipp->sub_entry, ipp->sub_type);
-        ((lune_ip_sub_info_t *)opt_val)->type = ipp->sub_type;
+        ((lune_ip_sub_info_t *)opt_val)->id = lower_entry_get_id(ipp->lower_entry, ipp->lower_type);
+        ((lune_ip_sub_info_t *)opt_val)->type = ipp->lower_type;
         break;
     case LUNE_IP_OPT_GET_ADDR:
         if (sizeof(lune_ip_addr_t) != opt_len) {
@@ -440,7 +440,7 @@ static unsigned short ip_socket_get_max_hdr_len(socket_t *sk)
 {
     ip_t *ipp = sk->pcb.ip.ipp;
 
-    lune_assert(LUNE_ID_MAC == ipp->sub_type);
+    lune_assert(LUNE_ID_MAC == ipp->lower_type);
 
     if (IP_IS_IPV6(ipp)) {
         return ipv6_get_max_hdr_len(ipp);

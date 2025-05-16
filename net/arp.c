@@ -48,7 +48,7 @@ static inline int arp_output(const lune_mac_addr_t dst_mac,
 
 int arp_send_req(ip_t *ipv4p, lune_ipv4_addr_t dst_addr)
 {
-    return arp_output(g_broadcast_mac, ipv4p->sub_entry, dst_addr,
+    return arp_output(g_broadcast_mac, ipv4p->lower_entry, dst_addr,
         ipv4p->ipv4.ip, LUNE_HW_TYPE_ETHERNET, LUNE_ETH_TYPE_IPV4, LUNE_ARP_REQ);
 }
 
@@ -95,7 +95,7 @@ int arp_input(mac_t *macp, pbuf_t *pbuf)
             return 0;
         }
 
-        lune_assert(ipv4p->sub_entry != NULL);
+        lune_assert(ipv4p->lower_entry != NULL);
 
         if (0 != (err = nb_upsert(arph->src_mac, &addr, NET_IF_GET_CURR_NET_IF()))) {
             nb_log_error("failed to upsert neighbor", &addr, err);
@@ -103,7 +103,7 @@ int arp_input(mac_t *macp, pbuf_t *pbuf)
         }
 
         if (!IP_IS_ARP_DISABLED(ipv4p)) {
-            if (0 != (err = arp_output(arph->src_mac, ipv4p->sub_entry, src_addr, ipv4p->ipv4.ip, 
+            if (0 != (err = arp_output(arph->src_mac, ipv4p->lower_entry, src_addr, ipv4p->ipv4.ip, 
                 LUNE_HW_TYPE_ETHERNET, LUNE_ETH_TYPE_IPV4, LUNE_ARP_RESP))) {
                 lune_log(LUNE_WARN, "failed to reply to arp request for %s",
                     lune_ipv4_to_str(ipv4p->ipv4.ip, ipv4_str, LUNE_IPV4_MAX_ADDR_STR_LEN));
@@ -129,16 +129,16 @@ int arp_input(mac_t *macp, pbuf_t *pbuf)
         }
 
         if (likely(macp != NULL)
-            && unlikely(macp != ipv4p->sub_entry)) {
+            && unlikely(macp != ipv4p->lower_entry)) {
             lune_log(LUNE_INFO, "ip and mac mismatched in arp response: "
                 "ip %s with mac %s, but mac %s expected",
                 lune_ipv4_to_str(ipv4p->ipv4.ip, ipv4_str, LUNE_IPV4_MAX_ADDR_STR_LEN),
                 lune_mac_to_str(macp->mac, mac_str, LUNE_MAC_ADDR_STR_LEN),
-                lune_mac_to_str(((mac_t *)ipv4p->sub_entry)->mac, mac_str2, LUNE_MAC_ADDR_STR_LEN));
+                lune_mac_to_str(((mac_t *)ipv4p->lower_entry)->mac, mac_str2, LUNE_MAC_ADDR_STR_LEN));
             return ERR_SET_ERR(LUNE_ERR_ARP_UNEXPECTED_PKT);
         }
 
-        lune_assert(NULL != ipv4p->sub_entry);
+        lune_assert(NULL != ipv4p->lower_entry);
 
         addr.is_ipv6 = 0;
         addr.ipv4 = src_addr;
@@ -217,10 +217,10 @@ int lune_send_grat_arp(unsigned int ip_id)
         return ERR_SET_ERR(LUNE_ERR_ID_NOT_FOUND);
     }
 
-    if (LUNE_ID_MAC != ipv4p->sub_type) {
+    if (LUNE_ID_MAC != ipv4p->lower_type) {
         return ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
     }
 
-    return arp_output(g_broadcast_mac, (mac_t *)ipv4p->sub_entry, ipv4p->ipv4.ip, ipv4p->ipv4.ip,
+    return arp_output(g_broadcast_mac, (mac_t *)ipv4p->lower_entry, ipv4p->ipv4.ip, ipv4p->ipv4.ip,
         LUNE_HW_TYPE_ETHERNET, LUNE_ETH_TYPE_IPV4, LUNE_ARP_REQ);
 }

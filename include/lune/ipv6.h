@@ -96,9 +96,9 @@ int lune_str_to_ipv6(const char *str, lune_ipv6_addr_t *addr);
 char *lune_ipv6_to_str(const lune_ipv6_addr_t *addr, char *buf, unsigned int len);
 
 unsigned int lune_add_ipv6(lune_ipv6_addr_t *ipv6,
-    lune_id_type_en sub_type, unsigned int sub_id);
+    lune_id_type_en lower_type, unsigned int sub_id);
 int lune_del_ipv6(unsigned int id);
 int lune_get_ipv6(lune_ipv6_addr_t *ipv6,
-    lune_id_type_en sub_type, unsigned int sub_id, unsigned int *ip_id);
+    lune_id_type_en lower_type, unsigned int sub_id, unsigned int *ip_id);
 
 #endif

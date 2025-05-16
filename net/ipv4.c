@@ -71,11 +71,11 @@ typedef struct _ipv4_defrag {
 static __thread void *s_ipv4_frag_htable = NULL;
 
 static inline unsigned int ipv4_add_ipv4(const lune_ipv4_addr_t ipv4,
-    lune_ipv4_addr_t mask, lune_ipv4_addr_t gw, lune_id_type_en sub_type, void *sub_entry)
+    lune_ipv4_addr_t mask, lune_ipv4_addr_t gw, lune_id_type_en lower_type, void *lower_entry)
 {
     ip_t *ipv4p;
 
-    lune_assert(NULL != sub_entry);
+    lune_assert(NULL != lower_entry);
 
     if (NULL == (ipv4p = lune_malloc(sizeof(ip_t)))) {
         goto ERR_1;
@@ -92,9 +92,9 @@ static inline unsigned int ipv4_add_ipv4(const lune_ipv4_addr_t ipv4,
     memset(&ipv4p->stats, 0x00, sizeof(lune_ip_stats_t));
     ipv4p->ref_cnt = 0;
 
-    ipv4p->sub_entry = sub_entry;
-    ipv4p->sub_type = sub_type;
-    sub_entry_hold(sub_entry, sub_type);
+    ipv4p->lower_entry = lower_entry;
+    ipv4p->lower_type = lower_type;
+    lower_entry_hold(lower_entry, lower_type);
 
     ipv4p->ipv4.ip = ipv4;
     ipv4p->ipv4.mask = mask;
@@ -104,9 +104,9 @@ static inline unsigned int ipv4_add_ipv4(const lune_ipv4_addr_t ipv4,
 
     ipv4p->sk = ipv4p->tcp_listen_sk = NULL;
     ipv4p->flags = 0;   /* IP_SET_IPV4() included */
-    if (LUNE_ID_MAC == sub_type
-        && LUNE_ID_NET_IF == MAC_GET_SUB_TYPE(sub_entry)) {
-        ipv4p->ifp = MAC_GET_SUB_ENTRY(sub_entry);
+    if (LUNE_ID_MAC == lower_type
+        && LUNE_ID_NET_IF == MAC_GET_LOWER_TYPE(lower_entry)) {
+        ipv4p->ifp = MAC_GET_LOWER_ENTRY(lower_entry);
     } else {
         ipv4p->ifp = NULL;
     }
@@ -117,7 +117,7 @@ static inline unsigned int ipv4_add_ipv4(const lune_ipv4_addr_t ipv4,
     ip_set_net_if_hw_csum_flags(ipv4p);
 
 #ifdef LUNE_BUILD_DPDK
-    if (sub_entry_is_dpdk(sub_entry, sub_type)) {
+    if (lower_entry_is_dpdk(lower_entry, lower_type)) {
         IP_SET_DPDK(ipv4p);
     }
 #endif
@@ -138,7 +138,7 @@ static inline unsigned int ipv4_add_ipv4(const lune_ipv4_addr_t ipv4,
 ERR_4:
     lune_assert(!idtable_remove(ipv4p->id, g_ip_idtable));
 
-    sub_entry_put(sub_entry, sub_type);
+    lower_entry_put(lower_entry, lower_type);
 
 ERR_3:
     lune_assert(!idlist_del_id(ipv4p->id, g_ip_idlist));
@@ -156,8 +156,8 @@ static inline int ipv4_del_ipv4(ip_t *ipv4p)
 
     lune_assert(!htable_remove(ipv4p, g_ip_htable));
 
-    sub_entry_put(ipv4p->sub_entry, ipv4p->sub_type);
-    ipv4p->sub_entry = NULL;
+    lower_entry_put(ipv4p->lower_entry, ipv4p->lower_type);
+    ipv4p->lower_entry = NULL;
 
     lune_assert(!idtable_remove(ipv4p->id, g_ip_idtable));
     lune_assert(!idlist_del_id(ipv4p->id, g_ip_idlist));
@@ -440,7 +440,7 @@ ERR_1:
     return ERR_GET_LAST_ERR();
 }
 
-int ipv4_input(lune_id_type_en sub_type, void *sub_entry, pbuf_t *pbuf)
+int ipv4_input(lune_id_type_en lower_type, void *lower_entry, pbuf_t *pbuf)
 {
     lune_ipv4_hdr_t *n_ipv4h;
     lune_ipv4_max_hdr_t h_ipv4h;
@@ -456,14 +456,14 @@ int ipv4_input(lune_id_type_en sub_type, void *sub_entry, pbuf_t *pbuf)
 
     n_ipv4h = (lune_ipv4_hdr_t *)PBUF_GET_PAYLOAD(pbuf);
 
-    switch (sub_type) {
+    switch (lower_type) {
     case LUNE_ID_MAC:
         ipv4_dup_and_n2h_hdr(&h_ipv4h, n_ipv4h);
         if (unlikely((h_ipv4h.hdr.ver_len & 0xf0) != 0x40)) {
             return ERR_SET_ERR(LUNE_ERR_IPV4_MALFORM_PKT);
         }
 
-        if (NULL == sub_entry) {
+        if (NULL == lower_entry) {
             if (IPV4_IS_BROADCAST_IP(h_ipv4h.hdr.dst_addr)) {
                 /* broadcast not supported yet */
                 return 0;
@@ -478,8 +478,8 @@ int ipv4_input(lune_id_type_en sub_type, void *sub_entry, pbuf_t *pbuf)
 
         ipv4.flags = 0;     /* IP_SET_IPV4() included */
         ipv4.ipv4.ip = h_ipv4h.hdr.dst_addr;
-        ipv4.sub_type = sub_type;
-        ipv4.sub_entry = sub_entry;
+        ipv4.lower_type = lower_type;
+        ipv4.lower_entry = lower_entry;
         ipv4.ifp = NET_IF_GET_CURR_NET_IF();
         if (NULL == (ipv4p = htable_find((void *)&ipv4, g_ip_htable))) {
             if (IPV4_IS_BROADCAST_IP(h_ipv4h.hdr.dst_addr)
@@ -700,12 +700,12 @@ static inline int ipv4_output_done(ip_t *ipv4p, pbuf_t *pbuf, lune_ipv4_addr_t d
     int err;
     unsigned long long bytes;
 
-    switch (ipv4p->sub_type) {
+    switch (ipv4p->lower_type) {
     case LUNE_ID_MAC:
     {
         lune_mac_addr_t dst_mac;
         int ret;
-        mac_t *macp = (mac_t *)ipv4p->sub_entry;
+        mac_t *macp = (mac_t *)ipv4p->lower_entry;
 
         bytes = PBUF_GET_PAYLOAD_LEN(pbuf) + PBUF_GET_HDR_LEN(pbuf);
         if (IPV4_IS_BROADCAST_IP(dst_addr)) {
@@ -766,12 +766,12 @@ int ipv4_output(ip_t *ipv4p, lune_ipv4_addr_t dst_addr, unsigned char proto, pbu
     PBUF_SET_L3_IPV4(pbuf);
 
 #ifdef LUNE_DEBUG
-    lune_assert(LUNE_ID_MAC == ipv4p->sub_type);
+    lune_assert(LUNE_ID_MAC == ipv4p->lower_type);
 #endif
 
     total_payload_len = PBUF_GET_PAYLOAD_LEN(pbuf);
-    if ((total_payload_len + hdr_len) > mac_get_mtu(ipv4p->sub_entry)) {
-        max_len = ipv4_get_frag_pkt_max_len(ipv4p->sub_entry);
+    if ((total_payload_len + hdr_len) > mac_get_mtu(ipv4p->lower_entry)) {
+        max_len = ipv4_get_frag_pkt_max_len(ipv4p->lower_entry);
         t = LUNE_IPV4_FLAG_MF;
         left_len = total_payload_len - max_len;
         pbuf_truncate_pbuf(pbuf, max_len);
@@ -843,8 +843,8 @@ int ipv4_output_nofrag(ip_t *ipv4p, lune_ipv4_addr_t dst_addr, unsigned char pro
     PBUF_SET_L3_IPV4(pbuf);
 
 #ifdef LUNE_DEBUG
-    lune_assert(LUNE_ID_MAC == ipv4p->sub_type);
-    lune_assert((PBUF_GET_PAYLOAD_LEN(pbuf) + hdr_len) <= mac_get_mtu(ipv4p->sub_entry));
+    lune_assert(LUNE_ID_MAC == ipv4p->lower_type);
+    lune_assert((PBUF_GET_PAYLOAD_LEN(pbuf) + hdr_len) <= mac_get_mtu(ipv4p->lower_entry));
 #endif
 
     pkt_id = ipv4p->ipv4.pkt_id++;
@@ -854,9 +854,9 @@ int ipv4_output_nofrag(ip_t *ipv4p, lune_ipv4_addr_t dst_addr, unsigned char pro
 }
 
 unsigned int lune_add_ipv4(lune_ipv4_addr_t ipv4, lune_ipv4_addr_t mask,
-    lune_ipv4_addr_t gw, lune_id_type_en sub_type, unsigned int sub_id)
+    lune_ipv4_addr_t gw, lune_id_type_en lower_type, unsigned int sub_id)
 {
-    void *sub_entry;
+    void *lower_entry;
 
     SCHED_CHECK_POINT();
 
@@ -867,7 +867,7 @@ unsigned int lune_add_ipv4(lune_ipv4_addr_t ipv4, lune_ipv4_addr_t mask,
         return LUNE_INVALID_ID;
     }
 
-    if (LUNE_ID_MAC != sub_type) {
+    if (LUNE_ID_MAC != lower_type) {
         ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
         return LUNE_INVALID_ID;
     }
@@ -877,12 +877,12 @@ unsigned int lune_add_ipv4(lune_ipv4_addr_t ipv4, lune_ipv4_addr_t mask,
         return LUNE_INVALID_ID;
     }
 
-    if (NULL == (sub_entry = id_get_entry(sub_type, sub_id))) {
+    if (NULL == (lower_entry = id_get_entry(lower_type, sub_id))) {
         ERR_SET_ERR(LUNE_ERR_ID_NOT_FOUND);
         return LUNE_INVALID_ID;
     }
 
-    return ipv4_add_ipv4(ipv4, mask, gw, sub_type, sub_entry);
+    return ipv4_add_ipv4(ipv4, mask, gw, lower_type, lower_entry);
 }
 
 int lune_del_ipv4(unsigned int id)
@@ -911,10 +911,10 @@ int lune_del_ipv4(unsigned int id)
 }
 
 int lune_get_ipv4(lune_ipv4_addr_t ipv4,
-    lune_id_type_en sub_type, unsigned int sub_id, unsigned int *ip_id)
+    lune_id_type_en lower_type, unsigned int sub_id, unsigned int *ip_id)
 {
     ip_t *ipv4p;
-    void *sub_entry;
+    void *lower_entry;
     void *ifp;
 
     SCHED_CHECK_POINT();
@@ -930,25 +930,25 @@ int lune_get_ipv4(lune_ipv4_addr_t ipv4,
         return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
     }
 
-    if (LUNE_ID_MAC != sub_type) {
+    if (LUNE_ID_MAC != lower_type) {
         *ip_id = LUNE_INVALID_ID;
         return ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
     }
 
-    if (NULL == (sub_entry = id_get_entry(sub_type, sub_id))) {
+    if (NULL == (lower_entry = id_get_entry(lower_type, sub_id))) {
         *ip_id = LUNE_INVALID_ID;
         return ERR_SET_ERR(LUNE_ERR_ID_NOT_FOUND);
     }
 
-    if (LUNE_ID_MAC == sub_type
-        && LUNE_ID_NET_IF == MAC_GET_SUB_TYPE(sub_entry)) {
-        ifp = MAC_GET_SUB_ENTRY(sub_entry);
+    if (LUNE_ID_MAC == lower_type
+        && LUNE_ID_NET_IF == MAC_GET_LOWER_TYPE(lower_entry)) {
+        ifp = MAC_GET_LOWER_ENTRY(lower_entry);
     } else {
         ifp = NULL;
     }
 
     if (NULL == (ipv4p = ip_get_ip_by_addr((void *)&ipv4,
-        0, sub_type, sub_entry, ifp))) {
+        0, lower_type, lower_entry, ifp))) {
         *ip_id = LUNE_INVALID_ID;
         /* ERR_SET_ERR() unneeded */
         return -LUNE_ERR_NOT_EXIST;
@@ -1032,12 +1032,12 @@ int lune_str_to_ipv4(const char *str, lune_ipv4_addr_t *addr)
 
 unsigned short ipv4_get_max_hdr_len(ip_t *ipv4p)
 {
-    unsigned short sub_entry_hdr_len;
+    unsigned short lower_entry_hdr_len;
 
     lune_assert(NULL != ipv4p);
 
-    sub_entry_hdr_len = pbuf_get_max_hdr_len(ipv4p->sub_type, ipv4p->sub_entry);
-    return IPV4_MAX_HDR_LEN + sub_entry_hdr_len;
+    lower_entry_hdr_len = pbuf_get_max_hdr_len(ipv4p->lower_type, ipv4p->lower_entry);
+    return IPV4_MAX_HDR_LEN + lower_entry_hdr_len;
 }
 
 int ipv4_join_group(ip_t *ipv4p, const lune_ipv4_join_group_arg_t *arg)
@@ -1115,8 +1115,8 @@ static int ipv4_socket_sendto(socket_t *sk, const unsigned char *buf, unsigned i
 
     pcb = &sk->pcb.ipv4;
 
-    lune_assert(LUNE_ID_MAC == pcb->ipv4p->sub_type);
-    if (unlikely(LUNE_IPV4_HDR_LEN + arg->opt_len + len > ((mac_t *)(pcb->ipv4p->sub_entry))->mtu)) {
+    lune_assert(LUNE_ID_MAC == pcb->ipv4p->lower_type);
+    if (unlikely(LUNE_IPV4_HDR_LEN + arg->opt_len + len > ((mac_t *)(pcb->ipv4p->lower_entry))->mtu)) {
         return ERR_SET_ERR(LUNE_ERR_OVERSIZED_PKT);
     }
 
@@ -1205,7 +1205,7 @@ static unsigned short ipv4_socket_get_max_hdr_len(socket_t *sk)
 {
     ip_t *ipv4p = sk->pcb.ipv4.ipv4p;
 
-    lune_assert(LUNE_ID_MAC == ipv4p->sub_type);
+    lune_assert(LUNE_ID_MAC == ipv4p->lower_type);
 
     return ipv4_get_max_hdr_len(ipv4p);
 }

@@ -15,16 +15,16 @@
 
 #define ID_MAX_NUM_OF_ID_IN_BIT     (25)
 
-static inline unsigned int sub_entry_get_id(void *sub_entry, lune_id_type_en sub_type)
+static inline unsigned int lower_entry_get_id(void *lower_entry, lune_id_type_en lower_type)
 {
-    switch (sub_type) {
+    switch (lower_type) {
     case LUNE_ID_NET_IF:
-        return ((net_if_t *)sub_entry)->id;
+        return ((net_if_t *)lower_entry)->id;
     case LUNE_ID_MAC:
-        return ((mac_t *)sub_entry)->id;
+        return ((mac_t *)lower_entry)->id;
     case LUNE_ID_IPV4:
     case LUNE_ID_IPV6:
-        return ((ip_t *)sub_entry)->id;
+        return ((ip_t *)lower_entry)->id;
     default:
         lune_assert(0);
         return LUNE_INVALID_ID;
@@ -32,37 +32,37 @@ static inline unsigned int sub_entry_get_id(void *sub_entry, lune_id_type_en sub
 }
 
 #ifdef LUNE_BUILD_DPDK
-static inline int sub_entry_is_dpdk(void *sub_entry, lune_id_type_en sub_type)
+static inline int lower_entry_is_dpdk(void *lower_entry, lune_id_type_en lower_type)
 {
-    switch (sub_type) {
+    switch (lower_type) {
     case LUNE_ID_NET_IF:
-        return NET_IF_IS_DPDK((net_if_t *)sub_entry);
+        return NET_IF_IS_DPDK((net_if_t *)lower_entry);
     case LUNE_ID_MAC:
-        return MAC_IS_DPDK((mac_t *)sub_entry);
+        return MAC_IS_DPDK((mac_t *)lower_entry);
     case LUNE_ID_IPV4:
     case LUNE_ID_IPV6:
-        return IP_IS_DPDK((ip_t *)sub_entry);
+        return IP_IS_DPDK((ip_t *)lower_entry);
     default:
         lune_assert(0);
         return 0;
     }
 }
 #else
-#define sub_entry_is_dpdk           (0)
+#define lower_entry_is_dpdk         (0)
 #endif
 
-static inline void sub_entry_hold(void *sub_entry, lune_id_type_en sub_type)
+static inline void lower_entry_hold(void *lower_entry, lune_id_type_en lower_type)
 {
-    switch (sub_type) {
+    switch (lower_type) {
     case LUNE_ID_NET_IF:
-        net_if_hold(sub_entry);
+        net_if_hold(lower_entry);
         break;
     case LUNE_ID_MAC:
-        mac_hold(sub_entry);
+        mac_hold(lower_entry);
         break;
     case LUNE_ID_IPV4:
     case LUNE_ID_IPV6:
-        ip_hold(sub_entry);
+        ip_hold(lower_entry);
         break;
     default:
         lune_assert(0);
@@ -70,18 +70,18 @@ static inline void sub_entry_hold(void *sub_entry, lune_id_type_en sub_type)
     }
 }
 
-static inline void sub_entry_put(void *sub_entry, lune_id_type_en sub_type)
+static inline void lower_entry_put(void *lower_entry, lune_id_type_en lower_type)
 {
-    switch (sub_type) {
+    switch (lower_type) {
     case LUNE_ID_NET_IF:
-        net_if_put(sub_entry);
+        net_if_put(lower_entry);
         break;
     case LUNE_ID_MAC:
-        mac_put(sub_entry);
+        mac_put(lower_entry);
         break;
     case LUNE_ID_IPV4:
     case LUNE_ID_IPV6:
-        ip_put(sub_entry);
+        ip_put(lower_entry);
         break;
     default:
         lune_assert(0);

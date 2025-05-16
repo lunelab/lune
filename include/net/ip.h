@@ -27,8 +27,8 @@ typedef struct _ip_pcb {
 #include "net/mac.h"
 #include "net/pbuf.h"
 
-#define IP_GET_SUB_ENTRY(ipp)               ((ip_t *)(ipp))->sub_entry
-#define IP_GET_SUB_TYPE(ipp)                ((ip_t *)(ipp))->sub_type
+#define IP_GET_LOWER_ENTRY(ipp)             ((ip_t *)(ipp))->lower_entry
+#define IP_GET_LOWER_TYPE(ipp)              ((ip_t *)(ipp))->lower_type
 
 #define IP_MAX_PAYLOAD_BUF_SIZE             65536
 
@@ -41,8 +41,8 @@ typedef struct _ip {
     unsigned int id;
     unsigned int ref_cnt;
 
-    void *sub_entry;
-    lune_id_type_en sub_type;
+    void *lower_entry;
+    lune_id_type_en lower_type;
 
     /* cache socket if any */
     void *sk;
@@ -136,7 +136,7 @@ extern __thread void *g_ip_idtable;
 extern __thread void *g_ip_htable;
 
 ip_t *ip_get_ip_by_addr(void *addr,
-    unsigned int is_ipv6, lune_id_type_en sub_type, void *sub_entry, void *ifp);
+    unsigned int is_ipv6, lune_id_type_en lower_type, void *lower_entry, void *ifp);
 
 ip_t *ip_get_ip_by_id(unsigned int id);
 
@@ -166,7 +166,7 @@ static inline void ip_put(ip_t *ipp)
 static inline int ip_output(ip_t *ipp, const lune_ip_addr_t *dst_addr, unsigned char proto, pbuf_t *pbuf)
 {
     if (unlikely(IP_IS_DELETED(ipp))) {
-        lune_assert(NULL == ipp->sub_entry);
+        lune_assert(NULL == ipp->lower_entry);
         return ERR_SET_ERR(LUNE_ERR_ALREADY_DELETED);
     }
 
@@ -184,7 +184,7 @@ static inline int ip_output(ip_t *ipp, const lune_ip_addr_t *dst_addr, unsigned 
 static inline int ip_output_nofrag(ip_t *ipp, const lune_ip_addr_t *dst_addr, unsigned char proto, pbuf_t *pbuf)
 {
     if (unlikely(IP_IS_DELETED(ipp))) {
-        lune_assert(NULL == ipp->sub_entry);
+        lune_assert(NULL == ipp->lower_entry);
         return ERR_SET_ERR(LUNE_ERR_ALREADY_DELETED);
     }
 
@@ -197,20 +197,20 @@ static inline int ip_output_nofrag(ip_t *ipp, const lune_ip_addr_t *dst_addr, un
 
 static inline int ip_get_mac(ip_t *ipp, lune_mac_addr_t mac)
 {
-    if (ipp->sub_type != LUNE_ID_MAC) {
+    if (ipp->lower_type != LUNE_ID_MAC) {
         return ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
     }
 
-    MAC_GET_MAC(ipp->sub_entry, mac);
+    MAC_GET_MAC(ipp->lower_entry, mac);
     return 0;
 }
 
 static inline unsigned int ip_is_pkt_frag(ip_t *ipp, unsigned short len)
 {
     if (IP_IS_IPV6(ipp)) {
-        return (len + LUNE_IPV6_HDR_LEN + LUNE_IPV6_FRAG_HDR_LEN) > mac_get_mtu(IP_GET_SUB_ENTRY(ipp));
+        return (len + LUNE_IPV6_HDR_LEN + LUNE_IPV6_FRAG_HDR_LEN) > mac_get_mtu(IP_GET_LOWER_ENTRY(ipp));
     } else {
-        return (len + LUNE_IPV4_HDR_LEN) > mac_get_mtu(IP_GET_SUB_ENTRY(ipp));
+        return (len + LUNE_IPV4_HDR_LEN) > mac_get_mtu(IP_GET_LOWER_ENTRY(ipp));
     }
 }
 

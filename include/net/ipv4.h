@@ -55,7 +55,7 @@ void ipv4_local_fini(void);
 int ipv4_join_group(ip_t *ipv4p, const lune_ipv4_join_group_arg_t *arg);
 int ipv4_leave_group(ip_t *ipv4p, lune_ipv4_addr_t group_addr);
 
-int ipv4_input(lune_id_type_en sub_type, void *sub_entry, pbuf_t *pbuf);
+int ipv4_input(lune_id_type_en lower_type, void *lower_entry, pbuf_t *pbuf);
 
 unsigned short ipv4_get_max_hdr_len(ip_t *ipv4p);
 

@@ -40,7 +40,7 @@ int ipv6_local_init(void);
 
 void ipv6_local_fini(void);
 
-int ipv6_input(lune_id_type_en sub_type, void *sub_entry, pbuf_t *pbuf);
+int ipv6_input(lune_id_type_en lower_type, void *lower_entry, pbuf_t *pbuf);
 
 unsigned short ipv6_get_max_hdr_len(ip_t *ipv6p);
 

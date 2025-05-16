@@ -3282,11 +3282,11 @@ static int tcp_socket_create(socket_x_t *sk)
 
 static inline unsigned short tcp_socket_get_max_hdr_len(tcp_pcb_t *pcb)
 {
-    unsigned short sub_entry_hdr_len;
+    unsigned short lower_entry_hdr_len;
 
-    sub_entry_hdr_len = pbuf_get_max_hdr_len(
+    lower_entry_hdr_len = pbuf_get_max_hdr_len(
         IP_IS_IPV6(pcb->ipp) ? LUNE_ID_IPV6 : LUNE_ID_IPV4, pcb->ipp);
-    return TCP_MAX_HDR_LEN + sub_entry_hdr_len;
+    return TCP_MAX_HDR_LEN + lower_entry_hdr_len;
 }
 
 unsigned short tcp_get_max_mss(tcp_pcb_t *pcb)
@@ -4278,13 +4278,13 @@ static int tcp_listen_socket_close(socket_t *listen_sk)
 
 static inline unsigned short tcp_listen_socket_get_max_hdr_len(tcp_listen_pcb_t *pcb)
 {
-    unsigned short sub_entry_hdr_len;
+    unsigned short lower_entry_hdr_len;
 
     lune_assert(NULL != pcb->ipp);
 
-    sub_entry_hdr_len = pbuf_get_max_hdr_len(
+    lower_entry_hdr_len = pbuf_get_max_hdr_len(
         IP_IS_IPV6(pcb->ipp) ? LUNE_ID_IPV6 : LUNE_ID_IPV4, pcb->ipp);
-    return TCP_MAX_HDR_LEN + sub_entry_hdr_len;
+    return TCP_MAX_HDR_LEN + lower_entry_hdr_len;
 }
 
 unsigned short tcp_listen_get_max_mss(tcp_listen_pcb_t *pcb)

@@ -330,13 +330,13 @@ SKIP_SOCKET:
 static unsigned short icmp_socket_get_max_hdr_len(socket_t *sk)
 {
     icmp_pcb_t *pcb = &sk->pcb.icmp;
-    unsigned short sub_entry_hdr_len;
+    unsigned short lower_entry_hdr_len;
 
     lune_assert(NULL != pcb->ipp);
 
-    sub_entry_hdr_len = pbuf_get_max_hdr_len(
+    lower_entry_hdr_len = pbuf_get_max_hdr_len(
         IP_IS_IPV6(pcb->ipp) ? LUNE_ID_IPV6 : LUNE_ID_IPV4, pcb->ipp);
-    return LUNE_ICMP_HDR_LEN + sub_entry_hdr_len;
+    return LUNE_ICMP_HDR_LEN + lower_entry_hdr_len;
 }
 
 static int icmp_socket_create(socket_t *sk)

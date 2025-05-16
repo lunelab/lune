@@ -62,14 +62,14 @@ mac_t *mac_get_mac(unsigned int id)
 }
 
 static inline unsigned int mac_add_mac(const lune_mac_addr_t mac,
-    lune_id_type_en sub_type,
-    void *sub_entry,
+    lune_id_type_en lower_type,
+    void *lower_entry,
     unsigned short outer_vid,
     unsigned short inner_vid)
 {
     mac_t *macp;
 
-    lune_assert(NULL != sub_entry);
+    lune_assert(NULL != lower_entry);
 
     if (NULL == (macp = lune_malloc(sizeof(mac_t)))) {
         goto ERR_1;
@@ -84,8 +84,8 @@ static inline unsigned int mac_add_mac(const lune_mac_addr_t mac,
     }
 
     LUNE_MAC_CPY(macp->mac, mac);
-    macp->sub_entry = sub_entry;
-    macp->sub_type = sub_type;
+    macp->lower_entry = lower_entry;
+    macp->lower_type = lower_type;
     macp->outer_vid = lune_htons(outer_vid);
     macp->inner_vid = lune_htons(inner_vid);
 
@@ -95,7 +95,7 @@ static inline unsigned int mac_add_mac(const lune_mac_addr_t mac,
 
     memset(&macp->stats, 0x00, sizeof(lune_mac_stats_t));
     macp->ref_cnt = 0;
-    macp->mtu = NET_IF_GET_MTU(sub_entry);
+    macp->mtu = NET_IF_GET_MTU(lower_entry);
     macp->flags = 0;
     if (LUNE_MAC_VID_NONE == outer_vid) {
         MAC_SET_VLAN_NONE(macp);
@@ -106,9 +106,9 @@ static inline unsigned int mac_add_mac(const lune_mac_addr_t mac,
     }
     macp->sk = NULL;
 
-    sub_entry_hold(sub_entry, sub_type);
+    lower_entry_hold(lower_entry, lower_type);
 #ifdef LUNE_BUILD_DPDK
-    if (sub_entry_is_dpdk(sub_entry, sub_type)) {
+    if (lower_entry_is_dpdk(lower_entry, lower_type)) {
         MAC_SET_DPDK(macp);
     }
 #endif
@@ -163,8 +163,8 @@ static inline int mac_del_mac(mac_t *macp)
     }
     lune_assert(!idlist_del_id(macp->id, s_mac_idlist));
 
-    sub_entry_put(macp->sub_entry, macp->sub_type);
-    macp->sub_entry = NULL;
+    lower_entry_put(macp->lower_entry, macp->lower_type);
+    macp->lower_entry = NULL;
 
     /* de-referenced from hash table */
     mac_put(macp);
@@ -197,8 +197,8 @@ static void mac_htable_free(mac_t *macp)
 
     lune_log(LUNE_DBG, "mac %d not closed", macp->id);
 
-    sub_entry_put(macp->sub_entry, macp->sub_type);
-    macp->sub_entry = NULL;
+    lower_entry_put(macp->lower_entry, macp->lower_type);
+    macp->lower_entry = NULL;
 
     mac_put(macp);
 }
@@ -213,8 +213,8 @@ static int mac_htable_compare(mac_t *macp1, mac_t *macp2)
     return  (!((!LUNE_MAC_CMP(macp1->mac, macp2->mac))
         && macp1->outer_vid == macp2->outer_vid
         && macp1->inner_vid == macp2->inner_vid
-        && macp1->sub_type == macp2->sub_type
-        && macp1->sub_entry == macp2->sub_entry));
+        && macp1->lower_type == macp2->lower_type
+        && macp1->lower_entry == macp2->lower_entry));
 }
 
 int mac_local_init(void)
@@ -265,7 +265,7 @@ void mac_local_fini(void)
     s_mac_idlist = NULL;
 }
 
-int mac_input(void *sub_entry, lune_id_type_en sub_type, pbuf_t *pbuf)
+int mac_input(void *lower_entry, lune_id_type_en lower_type, pbuf_t *pbuf)
 {
     mac_t *macp;
     mac_t m;
@@ -280,8 +280,8 @@ int mac_input(void *sub_entry, lune_id_type_en sub_type, pbuf_t *pbuf)
     hdr_len = LUNE_ETH_HDR_LEN;
 
     LUNE_MAC_CPY(m.mac, ethh->dst_mac);
-    m.sub_entry = sub_entry;
-    m.sub_type = sub_type;
+    m.lower_entry = lower_entry;
+    m.lower_type = lower_type;
     if (LUNE_ETH_TYPE_VLAN == type) {
         vf1 = (lune_vlan_field_t *)&ethh->type;
         m.outer_vid = MAC_GET_VID(vf1);
@@ -402,13 +402,13 @@ int mac_output(mac_t *macp,
 
     lune_assert(PBUF_GET_PAYLOAD_LEN(pbuf) <= macp->mtu);
 
-    return net_if_send_pkt(macp->sub_entry, pbuf);
+    return net_if_send_pkt(macp->lower_entry, pbuf);
 }
 
 unsigned int lune_add_mac(const lune_mac_addr_t mac,
-    lune_id_type_en sub_type, unsigned int sub_id)
+    lune_id_type_en lower_type, unsigned int sub_id)
 {
-    void *sub_entry;
+    void *lower_entry;
 
     SCHED_CHECK_POINT();
 
@@ -421,26 +421,26 @@ unsigned int lune_add_mac(const lune_mac_addr_t mac,
         return LUNE_INVALID_ID;
     }
 
-    if (LUNE_ID_NET_IF != sub_type) {
+    if (LUNE_ID_NET_IF != lower_type) {
         ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
         return LUNE_INVALID_ID;
     }
 
-    if (NULL == (sub_entry = id_get_entry(sub_type, sub_id))) {
+    if (NULL == (lower_entry = id_get_entry(lower_type, sub_id))) {
         ERR_SET_ERR(LUNE_ERR_ID_NOT_FOUND);
         return LUNE_INVALID_ID;
     }
 
-    return mac_add_mac(mac, sub_type, sub_entry,
+    return mac_add_mac(mac, lower_type, lower_entry,
         LUNE_MAC_VID_NONE, LUNE_MAC_VID_NONE);
 }
 
 unsigned int lune_add_mac_with_vlan(const lune_mac_addr_t mac,
-    lune_id_type_en sub_type,
+    lune_id_type_en lower_type,
     unsigned int sub_id,
     unsigned short vid)
 {
-    void *sub_entry;
+    void *lower_entry;
 
     SCHED_CHECK_POINT();
 
@@ -455,26 +455,26 @@ unsigned int lune_add_mac_with_vlan(const lune_mac_addr_t mac,
         return LUNE_INVALID_ID;
     }
 
-    if (LUNE_ID_NET_IF != sub_type) {
+    if (LUNE_ID_NET_IF != lower_type) {
         ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
         return LUNE_INVALID_ID;
     }
 
-    if (NULL == (sub_entry = id_get_entry(sub_type, sub_id))) {
+    if (NULL == (lower_entry = id_get_entry(lower_type, sub_id))) {
         ERR_SET_ERR(LUNE_ERR_ID_NOT_FOUND);
         return LUNE_INVALID_ID;
     }
 
-    return mac_add_mac(mac, sub_type, sub_entry, vid, LUNE_MAC_VID_NONE);
+    return mac_add_mac(mac, lower_type, lower_entry, vid, LUNE_MAC_VID_NONE);
 }
 
 unsigned int lune_add_mac_with_qinq(const lune_mac_addr_t mac,
-    lune_id_type_en sub_type,
+    lune_id_type_en lower_type,
     unsigned int sub_id,
     unsigned short outer_vid,
     unsigned short inner_vid)
 {
-    void *sub_entry;
+    void *lower_entry;
 
     SCHED_CHECK_POINT();
 
@@ -491,17 +491,17 @@ unsigned int lune_add_mac_with_qinq(const lune_mac_addr_t mac,
         return LUNE_INVALID_ID;
     }
 
-    if (LUNE_ID_NET_IF != sub_type) {
+    if (LUNE_ID_NET_IF != lower_type) {
         ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
         return LUNE_INVALID_ID;
     }
 
-    if (NULL == (sub_entry = id_get_entry(sub_type, sub_id))) {
+    if (NULL == (lower_entry = id_get_entry(lower_type, sub_id))) {
         ERR_SET_ERR(LUNE_ERR_ID_NOT_FOUND);
         return LUNE_INVALID_ID;
     }
 
-    return mac_add_mac(mac, sub_type, sub_entry, outer_vid, inner_vid);
+    return mac_add_mac(mac, lower_type, lower_entry, outer_vid, inner_vid);
 }
 
 int lune_del_mac(unsigned int id)
@@ -521,11 +521,11 @@ int lune_del_mac(unsigned int id)
     return mac_del_mac(macp);
 }
 
-int lune_get_mac(const lune_mac_addr_t mac, lune_id_type_en sub_type,
+int lune_get_mac(const lune_mac_addr_t mac, lune_id_type_en lower_type,
     unsigned int sub_id, unsigned int *mac_id)
 {
     mac_t m, *macp;
-    void *sub_entry;
+    void *lower_entry;
 
     SCHED_CHECK_POINT();
 
@@ -542,19 +542,19 @@ int lune_get_mac(const lune_mac_addr_t mac, lune_id_type_en sub_type,
         return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
     }
 
-    if (LUNE_ID_NET_IF != sub_type) {
+    if (LUNE_ID_NET_IF != lower_type) {
         *mac_id = LUNE_INVALID_ID;
         return ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
     }
 
-    if (NULL == (sub_entry = id_get_entry(sub_type, sub_id))) {
+    if (NULL == (lower_entry = id_get_entry(lower_type, sub_id))) {
         *mac_id = LUNE_INVALID_ID;
         return ERR_SET_ERR(LUNE_ERR_ID_NOT_FOUND);
     }
 
     LUNE_MAC_CPY(m.mac, mac);
-    m.sub_entry = sub_entry;
-    m.sub_type = sub_type;
+    m.lower_entry = lower_entry;
+    m.lower_type = lower_type;
     m.outer_vid = LUNE_MAC_VID_NONE;
     m.inner_vid = LUNE_MAC_VID_NONE;
 
@@ -568,11 +568,11 @@ int lune_get_mac(const lune_mac_addr_t mac, lune_id_type_en sub_type,
     return 0;
 }
 
-int lune_get_mac_with_vlan(const lune_mac_addr_t mac, lune_id_type_en sub_type,
+int lune_get_mac_with_vlan(const lune_mac_addr_t mac, lune_id_type_en lower_type,
     unsigned int sub_id, unsigned short vid, unsigned int *mac_id)
 {
     mac_t m, *macp;
-    void *sub_entry;
+    void *lower_entry;
 
     if (NULL == mac_id) {
         return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
@@ -589,19 +589,19 @@ int lune_get_mac_with_vlan(const lune_mac_addr_t mac, lune_id_type_en sub_type,
         return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
     }
 
-    if (LUNE_ID_NET_IF != sub_type) {
+    if (LUNE_ID_NET_IF != lower_type) {
         *mac_id = LUNE_INVALID_ID;
         return ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
     }
 
-    if (NULL == (sub_entry = id_get_entry(sub_type, sub_id))) {
+    if (NULL == (lower_entry = id_get_entry(lower_type, sub_id))) {
         *mac_id = LUNE_INVALID_ID;
         return ERR_SET_ERR(LUNE_ERR_ID_NOT_FOUND);
     }
 
     LUNE_MAC_CPY(m.mac, mac);
-    m.sub_entry = sub_entry;
-    m.sub_type = sub_type;
+    m.lower_entry = lower_entry;
+    m.lower_type = lower_type;
     m.outer_vid = lune_htons(vid);
     m.inner_vid = LUNE_MAC_VID_NONE;
 
@@ -616,14 +616,14 @@ int lune_get_mac_with_vlan(const lune_mac_addr_t mac, lune_id_type_en sub_type,
 }
 
 int lune_get_mac_with_qinq(const lune_mac_addr_t mac,
-    lune_id_type_en sub_type,
+    lune_id_type_en lower_type,
     unsigned int sub_id,
     unsigned short outer_vid,
     unsigned short inner_vid,
     unsigned int *mac_id)
 {
     mac_t m, *macp;
-    void *sub_entry;
+    void *lower_entry;
 
     if (NULL == mac_id) {
         return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
@@ -642,19 +642,19 @@ int lune_get_mac_with_qinq(const lune_mac_addr_t mac,
         return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
     }
 
-    if (LUNE_ID_NET_IF != sub_type) {
+    if (LUNE_ID_NET_IF != lower_type) {
         *mac_id = LUNE_INVALID_ID;
         return ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
     }
 
-    if (NULL == (sub_entry = id_get_entry(sub_type, sub_id))) {
+    if (NULL == (lower_entry = id_get_entry(lower_type, sub_id))) {
         *mac_id = LUNE_INVALID_ID;
         return ERR_SET_ERR(LUNE_ERR_ID_NOT_FOUND);
     }
 
     LUNE_MAC_CPY(m.mac, mac);
-    m.sub_entry = sub_entry;
-    m.sub_type = sub_type;
+    m.lower_entry = lower_entry;
+    m.lower_type = lower_type;
     m.outer_vid = lune_htons(outer_vid);
     m.inner_vid = lune_htons(inner_vid);
 
@@ -805,8 +805,8 @@ int lune_get_mac_opt(unsigned int id,
         if (sizeof(lune_mac_sub_info_t) != opt_len) {
             return ERR_SET_ERR(LUNE_ERR_INVALID_ARG);
         }
-        ((lune_mac_sub_info_t *)opt_val)->id = sub_entry_get_id(macp->sub_entry, macp->sub_type);
-        ((lune_mac_sub_info_t *)opt_val)->type = macp->sub_type;
+        ((lune_mac_sub_info_t *)opt_val)->id = lower_entry_get_id(macp->lower_entry, macp->lower_type);
+        ((lune_mac_sub_info_t *)opt_val)->type = macp->lower_type;
         break;
     default:
         return ERR_SET_ERR(LUNE_ERR_OPT_NOT_FOUND);
@@ -818,7 +818,7 @@ int lune_get_mac_opt(unsigned int id,
 unsigned short mac_get_max_hdr_len(mac_t *macp)
 {
     return LUNE_ETH_HDR_LEN + LUNE_QINQ_FIELD_LEN
-        + pbuf_get_max_hdr_len(macp->sub_type, macp->sub_entry);
+        + pbuf_get_max_hdr_len(macp->lower_type, macp->lower_entry);
 }
 
 int lune_set_mac_opt(unsigned int id,
@@ -849,8 +849,8 @@ int lune_set_mac_opt(unsigned int id,
             return ERR_SET_ERR(LUNE_ERR_INVALID_MTU);
         }
 
-        if (LUNE_ID_NET_IF == macp->sub_type
-            && mtu > NET_IF_GET_MTU(macp->sub_entry)) {
+        if (LUNE_ID_NET_IF == macp->lower_type
+            && mtu > NET_IF_GET_MTU(macp->lower_entry)) {
             return ERR_SET_ERR(LUNE_ERR_INVALID_MTU);
         }
 
@@ -934,7 +934,7 @@ static int mac_socket_sendto(socket_t *sk, const unsigned char *buf, unsigned in
         return ERR_SET_ERR(LUNE_ERR_NOT_BOUND);
     }
 
-    if (LUNE_ID_NET_IF != macp->sub_type) {
+    if (LUNE_ID_NET_IF != macp->lower_type) {
         return ERR_SET_ERR(LUNE_ERR_NOT_SUPPORTED);
     }
 
@@ -995,7 +995,7 @@ static unsigned short mac_socket_get_max_hdr_len(socket_t *sk)
 {
     mac_t *macp = sk->pcb.mac.macp;
 
-    lune_assert(LUNE_ID_NET_IF == macp->sub_type);
+    lune_assert(LUNE_ID_NET_IF == macp->lower_type);
 
     return mac_get_max_hdr_len(macp);
 }

@@ -27,8 +27,8 @@ typedef struct _mac_pcb {
 #define ETH_TYPE_IPV6_N                             0xdd86
 #define ETH_TYPE_VLAN_N                             0x0081
 
-#define MAC_GET_SUB_ENTRY(macp)                     ((mac_t *)(macp))->sub_entry
-#define MAC_GET_SUB_TYPE(macp)                      ((mac_t *)(macp))->sub_type
+#define MAC_GET_LOWER_ENTRY(macp)                   ((mac_t *)(macp))->lower_entry
+#define MAC_GET_LOWER_TYPE(macp)                    ((mac_t *)(macp))->lower_type
 #define MAC_GET_MAC(macp, mac)                      \
     LUNE_MAC_CPY(mac, ((mac_t *)(macp))->mac)
 
@@ -69,8 +69,8 @@ typedef struct _mac {
 
     unsigned short mtu;
 
-    void *sub_entry;
-    lune_id_type_en sub_type;
+    void *lower_entry;
+    lune_id_type_en lower_type;
 
     /* both outer_vid and inner_vid ranges from 0x000 to 0xfff */
     unsigned short outer_vid;
@@ -135,7 +135,7 @@ static inline unsigned short mac_get_mtu(mac_t *macp)
     return macp->mtu;
 }
 
-int mac_input(void *sub_entry, lune_id_type_en sub_type, pbuf_t *pbuf);
+int mac_input(void *lower_entry, lune_id_type_en lower_type, pbuf_t *pbuf);
 
 int mac_output(mac_t *macp,
     const lune_mac_addr_t dst_mac, unsigned short type_n, pbuf_t *pbuf);

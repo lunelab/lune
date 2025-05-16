@@ -73,10 +73,10 @@ int lune_str_to_ipv4(const char *str, lune_ipv4_addr_t *addr);
 char *lune_ipv4_to_str(const lune_ipv4_addr_t addr, char *buf, unsigned int len);
 
 unsigned int lune_add_ipv4(lune_ipv4_addr_t ipv4, lune_ipv4_addr_t mask,
-    lune_ipv4_addr_t gw, lune_id_type_en sub_type, unsigned int sub_id);
+    lune_ipv4_addr_t gw, lune_id_type_en lower_type, unsigned int sub_id);
 int lune_del_ipv4(unsigned int id);
 int lune_get_ipv4(lune_ipv4_addr_t ipv4,
-    lune_id_type_en sub_type, unsigned int sub_id, unsigned int *ip_id);
+    lune_id_type_en lower_type, unsigned int sub_id, unsigned int *ip_id);
 
 #ifdef __cplusplus
 }

@@ -424,13 +424,13 @@ static void igmp_delete_group(igmp_group_t *igp)
 static unsigned short igmp_socket_get_max_hdr_len(socket_t *sk)
 {
     igmp_pcb_t *pcb = &sk->pcb.igmp;
-    unsigned short sub_entry_hdr_len;
+    unsigned short lower_entry_hdr_len;
 
     lune_assert(NULL != pcb->ipv4p);
 
-    sub_entry_hdr_len = pbuf_get_max_hdr_len(
+    lower_entry_hdr_len = pbuf_get_max_hdr_len(
         IP_IS_IPV6(pcb->ipv4p) ? LUNE_ID_IPV6 : LUNE_ID_IPV4, pcb->ipv4p);
-    return LUNE_IGMP_HDR_LEN + sub_entry_hdr_len;
+    return LUNE_IGMP_HDR_LEN + lower_entry_hdr_len;
 }
 
 static int igmp_socket_create(socket_t *sk)
