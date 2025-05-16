@@ -2814,7 +2814,7 @@ int lune_get_net_if_opt(unsigned int id,
         }
 
         if (LUNE_INVALID_ID == ifp->mac_id) {
-            return ERR_SET_ERR(LUNE_ERR_NOT_SET);
+            return ERR_SET_ERR(LUNE_ERR_MAC_NOT_SET);
         }
 
         *(unsigned int *)opt_val = ifp->mac_id;
@@ -2825,7 +2825,7 @@ int lune_get_net_if_opt(unsigned int id,
         }
 
         if (LUNE_INVALID_ID == ifp->mac_id) {
-            return ERR_SET_ERR(LUNE_ERR_NOT_SET);
+            return ERR_SET_ERR(LUNE_ERR_MAC_NOT_SET);
         }
 
         lune_mac_info_t info;
@@ -2841,7 +2841,7 @@ int lune_get_net_if_opt(unsigned int id,
         }
 
         if (LUNE_INVALID_ID == ifp->ipv4_id) {
-            return ERR_SET_ERR(LUNE_ERR_NOT_SET);
+            return ERR_SET_ERR(LUNE_ERR_IPV4_NOT_SET);
         }
 
         *(unsigned int *)opt_val = ifp->ipv4_id;
@@ -2852,7 +2852,7 @@ int lune_get_net_if_opt(unsigned int id,
         }
 
         if (LUNE_INVALID_ID == ifp->ipv4_id) {
-            return ERR_SET_ERR(LUNE_ERR_NOT_SET);
+            return ERR_SET_ERR(LUNE_ERR_IPV4_NOT_SET);
         }
 
         lune_ip_addr_t ip;
