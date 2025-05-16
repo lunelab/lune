@@ -373,7 +373,7 @@ static int net_if_std_init_std(net_if_std_t *std, const char *name)
 
     /* get ip address */
     if (0 == ioctl(fd, SIOCGIFADDR, &ifr)) {
-        std->ipv4 = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
+        std->ipv4 = lune_ntohl(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr);
         NET_IF_STD_SET_IPV4(std);
     } else {
         std->ipv4 = 0;
@@ -382,7 +382,7 @@ static int net_if_std_init_std(net_if_std_t *std, const char *name)
 
     /* get subnet mask */
     if (0 == ioctl(fd, SIOCGIFNETMASK, &ifr)) {
-        std->mask = ((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr.s_addr;
+        std->mask = lune_ntohl(((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr.s_addr);
         NET_IF_STD_SET_MASK(std);
     } else {
         std->mask = 0;
@@ -392,7 +392,7 @@ static int net_if_std_init_std(net_if_std_t *std, const char *name)
     /* get gateway */
     struct in_addr gw;
     if (0 == get_ipv4_gateway(name, &gw)) {
-        std->gw = gw.s_addr;
+        std->gw = lune_ntohl(gw.s_addr);
         NET_IF_STD_SET_GW(std);
     } else {
         std->gw = 0;
